@@ -25,12 +25,14 @@ def get_source_and_target_paths(graph: Graph, label: str, names: List[str]) -> T
     WHERE toLower(source.name) = toLower("{names[0]}")
     WITH relationships(path) AS rels, nodes(path) AS nodes
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    LIMIT 15
     """
     query_target = f"""
     MATCH path=(target:{label})-[*1..2]->(node)
     WHERE toLower(target.name) = toLower("{names[1]}")
     WITH relationships(path) AS rels, nodes(path) AS nodes
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    LIMIT 15
     """
     print(query_source)
     print(query_target)
@@ -65,6 +67,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
     WITH p, associated_genes, [rel IN relationships(p) | type(rel)] AS path_relationships
 
     RETURN [node IN nodes(p) | node.name] AS path_nodes, associated_genes, path_relationships
+    LIMIT 15
     """
     print(query)
     result = graph.run(query)
@@ -170,40 +173,44 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
         return unique_relationships_list, unique_target_paths_list, unique_source_paths_list, final_path_nodes
     
 def query_inter_relationships(graph: Graph, nodes:List[str]) -> str:
-    nodes_string = "[" + ", ".join("$node" + str(i) for i in range(len(nodes))) + "]"
     query_parameters = {"nodes": list(nodes)}
 
     # Query for interrelationships among nodes
+    # Query for interrelationships among nodes
     inter_relationships_query = """
-    MATCH (n:Entity) WHERE n.name IN $nodes
+    UNWIND $nodes AS nodeName
+    MATCH (n:Test) WHERE n.name = nodeName
     WITH collect(n) as nodes
     UNWIND nodes as n
     UNWIND nodes as m
     WITH * WHERE id(n) < id(m)
-    MATCH path = allShortestPaths((n)-[*]-(m))
+    MATCH path = allShortestPaths((n:Test)-[*]-(m:Test))
     WITH nodes(path) AS nodes, relationships(path) AS rels
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
     """
+
     result_inter = graph.run(inter_relationships_query, **query_parameters)
     print(inter_relationships_query)
-
     # Query for direct relationships to and from nodes
     direct_relationships_query = """
+    UNWIND $nodes AS nodeName
+    MATCH (n:Test) WHERE n.name = nodeName
     MATCH p = (n)-[*1..]-(m)
-    WHERE n.name IN $nodes
     WITH p, [rel IN relationships(p) WHERE startNode(rel) <> n | type(rel)] AS path_relationships
     RETURN [node IN nodes(p) | node.name] AS path_nodes, path_relationships
     """
-    print(direct_relationships_query)
     result_direct = graph.run(direct_relationships_query, **query_parameters)
+    print(direct_relationships_query)
 
     inter_between_direct_query = """
+    UNWIND $nodes AS nodeName
+    MATCH (n:Test) WHERE n.name = nodeName
     MATCH (n)-[r]-(m)
-    WHERE n.name IN $nodes
     RETURN [n.name, m.name] AS path_nodes, [type(r)] AS path_relationships
     """
     result_inter_direct = graph.run(inter_between_direct_query, **query_parameters)
     print(inter_between_direct_query)
+    
     # Combine results
     relationships_inter_direct = set()
     relationships_inter = set()
