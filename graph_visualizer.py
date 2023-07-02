@@ -1,34 +1,48 @@
 import networkx as nx
 import plotly.graph_objects as go
-def draw_graph(paths):
+import networkx as nx
+import plotly.graph_objects as go
+import streamlit as st
+
+def draw_network_graph(nodes, edges):
     G = nx.DiGraph()
 
-    # Add nodes and edges to the graph
-    for path in paths:
-        elements = path.split(' -> ')  # Split each path into nodes and relationships
-        nodes = elements[::2]  # Select every second element starting from 0 (the nodes)
-        relationships = elements[1::2]  # Select every second element starting from 1 (the relationships)
-        G.add_nodes_from(nodes)
-        for i in range(len(nodes)-1):
-            G.add_edge(nodes[i], nodes[i+1], relationship=relationships[i])
-    node_x = [pos[node][0] for node in G.nodes()]
-    node_y = [pos[node][1] for node in G.nodes()]
+    for node in nodes:
+        G.add_node(node)
+
+    for edge in edges:
+        G.add_edge(edge[0], edge[1], label=edge[2])
+
     pos = nx.spring_layout(G)
-    node_labels = [node for node in G.nodes()]
+
+    edge_x = []
+    edge_y = []
+    edge_text = []
+    for edge in G.edges(data=True):
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
+        edge_text.append(edge[2]['label'])
+
     edge_trace = go.Scatter(
-        x=[pos[edge[0]][0] for edge in G.edges()] + [None] + [pos[edge[1]][0] for edge in G.edges()],
-        y=[pos[edge[0]][1] for edge in G.edges()] + [None] + [pos[edge[1]][1] for edge in G.edges()],
+        x=edge_x, y=edge_y,
         line=dict(width=0.5, color='#888'),
         hoverinfo='text',
-        mode='lines',
-        text=[G.edges[edge]['relationship'] for edge in G.edges()],
-        textposition='middle center'
-    )
+        mode='lines')
+
+    edge_trace.text = edge_text
+
+    node_x = []
+    node_y = []
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
 
     node_trace = go.Scatter(
         x=node_x, y=node_y,
         mode='markers',
-        text=node_labels,  # Add node labels here
         hoverinfo='text',
         marker=dict(
             showscale=True,
@@ -44,24 +58,44 @@ def draw_graph(paths):
             ),
             line_width=2))
 
+    node_adjacencies = []
+    node_text = []
+    for node, adjacencies in enumerate(G.adjacency()):
+        node_adjacencies.append(len(adjacencies[1]))
+        node_text.append(f'{nodes[node]} - # of connections: {len(adjacencies[1])}')
+
+    node_trace.marker.color = node_adjacencies
+    node_trace.text = node_text
 
     fig = go.Figure(data=[edge_trace, node_trace],
-        layout=go.Layout(
-            title='Network graph made with Python',
-            titlefont_size=16,
-            showlegend=False,
-            hovermode='closest',
-            margin=dict(b=20,l=5,r=5,t=40),
-            annotations=[ dict(
-                showarrow=False,
-                xref="paper", yref="paper",
-                x=0.005, y=-0.002 ) ],
-            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
-        )
-    )
+             layout=go.Layout(
+                title='Network graph',
+                titlefont_size=16,
+                showlegend=False,
+                hovermode='closest',
+                margin=dict(b=20,l=5,r=5,t=40),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
+                )
 
-    return fig
+    # Add node labels
+    for node in G.nodes():
+        fig.add_annotation(
+            x=pos[node][0], 
+            y=pos[node][1],
+            text=node,
+            showarrow=False,
+            font=dict(
+                size=10,
+                color="Black"
+            ),
+            bgcolor="White",
+            opacity=0.8
+        )
+
+    st.plotly_chart(fig)
 
 
 def parse_relationships(relationships):
@@ -69,7 +103,7 @@ def parse_relationships(relationships):
     edges = []
     for relationship in relationships:
         elements = relationship.split(' -> ')
-        for i in range(0, len(elements) - 1, 2):
+        for i in range(0, len(elements) - 2, 2):
             source = elements[i]
             relationship_type = elements[i + 1]
             target = elements[i + 2]
