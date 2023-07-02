@@ -27,10 +27,19 @@ Input: {input}
 
 ### Response:"""
 
-Entity_Extraction_Template = """You are an artificial intelligence assistant that extracts biomedical entities from the question asked by the user.
-USER: Extract entities from the question, do not try to answer the question. Include only the extracted entities in your response. Strictly follow this format in your response:
-Entities: [extracted entities]
+Entity_type_Template_airo = """USER: Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose from the list below:
+Entity Types:
+Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
+Your response should be a list of tuples, and strictly follow this format:
+Entities: [(Entity1_name, Entity1_ype), Entity2_name, Entity2_type)]
+Response example:
+Entities: [("Alzheimer's Disease", "Disease"), ("Autophagy", "Biological_process")]
+Input: {input}
+ASSISTANT:"""
 
+Entity_Extraction_Template_airo = """You are an artificial intelligence assistant that extracts biomedical entities from the question asked by the user.
+USER: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
+Entities: [extracted entity1, extracted entity2]
 Question: {input}
 ASSISTANT:"""
 
@@ -81,6 +90,36 @@ Context:
 Question: {question}
 
 ### Response:
+"""
+
+Graph_Answer_Gen_Template_airo = """USER: BEGININPUT
+BEGINCONTEXT
+Indirect relations between {source} and {target}
+ENDCONTEXT
+{multihop_relations}
+ENDINPUT
+BEGININPUT
+BEGINCONTEXT
+Direct relations from {source}
+ENDCONTEXT
+{direct_relations_source}
+ENDINPUT
+BEGININPUT
+BEGINCONTEXT
+Direct relations from {target}
+ENDCONTEXT
+{direct_relations_target}
+ENDINPUT
+BEGININPUT
+BEGINCONTEXT
+Relations between the targets of {source} and {target}
+ENDCONTEXT
+{inter_relations}
+ENDINPUT
+BEGININSTRUCTION
+{question}
+ENDINSTRUCTION
+ ASSISTANT:
 """
 
 Final_chain_template = """### Instruction: 
