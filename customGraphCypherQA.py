@@ -14,10 +14,12 @@ import numpy as np
 from sklearn.cluster import KMeans
 from langchain.vectorstores import Chroma, FAISS
 from sklearn.preprocessing import StandardScaler
-from prompts import Coherent_sentences_template, Graph_Answer_Gen_Template, Graph_Answer_Gen_Template_airo
+from prompts import Coherent_sentences_template, Graph_Answer_Gen_Template, Graph_Answer_Gen_Template_airo, Graph_Answer_Gen_Template_alpaca
 from langchain.prompts import PromptTemplate
 from Custom_Agent import get_similar_compounds
 from tqdm import tqdm
+import streamlit as st
+from sentence_transformers import SentenceTransformer
 
 def get_source_and_target_paths(graph: Graph, label: str, names: List[str]) -> Tuple[List[Relationship], List[Relationship]]:
     query_source = f"""
@@ -25,14 +27,12 @@ def get_source_and_target_paths(graph: Graph, label: str, names: List[str]) -> T
     WHERE toLower(source.name) = toLower("{names[0]}")
     WITH relationships(path) AS rels, nodes(path) AS nodes
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
-    LIMIT 16
     """
     query_target = f"""
     MATCH path=(target:{label})-[*1..2]->(node)
     WHERE toLower(target.name) = toLower("{names[1]}")
     WITH relationships(path) AS rels, nodes(path) AS nodes
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
-    LIMIT 16
     """
     print(query_source)
     print(query_target)
@@ -40,27 +40,39 @@ def get_source_and_target_paths(graph: Graph, label: str, names: List[str]) -> T
     target_results = list(graph.run(query_target))
     source_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in source_results]
     target_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in target_results]
-    #source_paths = [construct_path_string(record['path_nodes'], record['path_relationships']) for record in source_results]
-    #target_paths = [construct_path_string(record['path_nodes'], record['path_relationships']) for record in target_results]
+    print("source paths:")
+    print(len(source_paths))
+    print("target paths")
+    print(len(target_paths))
     source_relationships = [construct_relationship_string(record['path_nodes'], record['path_relationships']) for record in source_results]
     target_relationships = [construct_relationship_string(record['path_nodes'], record['path_relationships']) for record in target_results]
-    print(source_relationships)
-    all_path_nodes = set()
-    for record in source_results:
-        all_path_nodes.update(record['path_nodes'])
-    for record in target_results:
-        all_path_nodes.update(record['path_nodes'])
-    print("source and target nodes:")
-    print(len(all_path_nodes))
-    #print(all_path_nodes)
-    return source_paths, target_paths, source_relationships, target_relationships, all_path_nodes
+    
+    with open("sample.txt", "w") as file:
+        source_rels_to_write = [construct_path_string(record['path_nodes'], record['path_relationships']) for record in source_results]
+        for string in source_rels_to_write:
+            file.write(string + '\n')
+        target_rels_to_write = [construct_path_string(record['path_nodes'], record['path_relationships']) for record in target_results]
+        for string in target_rels_to_write:
+            file.write(string + '\n')
+    
+    return source_paths, target_paths, source_relationships, target_relationships
 
 def construct_path_string(nodes: List[str], relationships: List[str]) -> str:
-    path_elements = [f"{nodes[i]} -> {relationships[i]} -> {nodes[i + 1]}" for i in range(len(nodes) - 1)]
+    path_elements = []
+    for node, relationship in zip(nodes, relationships):
+        if node is None or relationship is None:
+            continue  # Skip this element if the node or the relationship is None
+        path_elements.append(f"{node} -> {relationship}")
+    if nodes[-1] is not None:
+        path_elements.append(nodes[-1])  # add the last node
     return " -> ".join(path_elements)
 
 def construct_relationship_string(nodes: List[str], relationships: List[str]) -> str:
-    path_elements = [f"{nodes[i]} -> {relationships[i]} -> {nodes[i + 1]}" for i in range(len(nodes) - 1)]
+    path_elements = []
+    for i in range(len(nodes) - 1):
+        if nodes[i] is None or relationships[i] is None or nodes[i + 1] is None:
+            continue  # Skip this element if any of the nodes or the relationship is None
+        path_elements.append(f"{nodes[i]} -> {relationships[i]} -> {nodes[i + 1]}")
     return ", ".join(path_elements)
 
 def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types: Dict[str, str], repeat: bool) -> List[Dict[str, Any]]:
@@ -70,14 +82,13 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
     MATCH (source:{label}), (target:{label})
     {names_conditions}
     MATCH p = allShortestPaths((source)-[*]-(target))
-
-    WITH p, [r IN relationships(p) WHERE type(r) = "ASSOCIATED_WITH" | startNode(r).name] AS associated_genes
-    WITH p, associated_genes, [rel IN relationships(p) | type(rel)] AS path_relationships
-
-    RETURN [node IN nodes(p) | node.name] AS path_nodes, associated_genes, path_relationships
+    WITH p, [rel IN relationships(p) | type(rel)] AS path_relationships
+    WITH relationships(p) AS rels, nodes(p) AS nodes, path_relationships
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
     """
     print(query)
     result = graph.run(query)
+
     if not result and repeat==True:
         source_entity_type = entity_types[f"{names[0]}"]
         target_entity_type = entity_types[f"{names[1]}"]
@@ -127,26 +138,19 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
     #if not result and source_entity_type == "Drug":
         
     # Initialize a set to store unique associated genes
-    associated_genes_set = set()
-    unique_relationships = set()
     unique_source_paths = []
     unique_target_paths = []
-    final_path_nodes = set()
     unique_graph_rels = set()
+
+    unique_rel_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result]
 
     for record in result:
         path_nodes = record['path_nodes']
-        associated_genes_list = record['associated_genes']
         path_relationships = record['path_relationships']
-        # Add the genes to the set
-        final_path_nodes.update(record['path_nodes'])
-        # Construct and add the relationship strings to the set
-        path_string = construct_path_string(path_nodes, path_relationships)
         rel_string = construct_relationship_string(path_nodes, path_relationships)
         unique_graph_rels.add(rel_string)
-        unique_relationships.add(path_string)
     
-    source_paths, target_paths, source_relationships, target_relationships, source_and_target_nodes = get_source_and_target_paths(graph, label, names)
+    source_paths, target_paths, source_relationships, target_relationships = get_source_and_target_paths(graph, label, names)
 
     for path in source_paths:
         unique_source_paths.append(path)
@@ -160,47 +164,29 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
     for rel in target_relationships:
         unique_graph_rels.add(rel)
 
-    print("number of nodes:")
-    print(len(final_path_nodes))
-    #print(final_path_nodes)
-    # Remove the source and target node names from the associated genes set
-    lower_names = {name.lower() for name in names}
-    associated_genes_set = {gene for gene in associated_genes_set if gene.lower() not in lower_names}
-
     # Convert unique_relationships set to list
-    unique_relationships_list = list(unique_relationships)
     unique_source_paths_list = list(unique_source_paths)
     unique_target_paths_list = list(unique_target_paths)
     unique_graph_rels_list = list(unique_graph_rels)
-    #print(unique_graph_rels)
-    # Check if there are associated genes and return accordingly
-    if associated_genes_set:
-        associated_genes_list = list(associated_genes_set)
-        gene_string = f"The following genes are associated with both {names[0]} and {names[1]}: {', '.join(associated_genes_list)}"
-        print(gene_string)
-        return unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels_list, final_path_nodes, gene_string
-    else:
-        print("There are no associated genes.")
-        #print(unique_relationships_list)
 
-        return unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels_list, final_path_nodes
-    
-def query_inter_relationships_direct(graph: Graph, nodes:List[str]) -> str:
-    query_parameters = {"nodes": list(nodes)}
+    return unique_rel_paths, unique_target_paths_list, unique_source_paths_list, unique_graph_rels_list
 
-    direct_relationships_query = """
-    MATCH (n:Test)
-    WHERE n.name IN $nodes
-    MATCH (n)-[r]-()
-    RETURN DISTINCT [node IN nodes(r) | node.name] AS path_nodes, [rel IN relationships(r) | type(rel)] AS path_relationships
-    LIMIT 16
-    """
-    result_direct = graph.run(direct_relationships_query, **query_parameters)
-    direct_nodes = [node for record in result_direct for node in record['path_nodes']]
-    print(direct_relationships_query)
+def query_inter_relationships_direct1(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
     all_nodes = set()
     graph_strings = set()
     relationships_direct = set()
+    og_relationships_direct_list = []
+    direct_nodes = []
+
+    direct_relationships_query = f"""
+    MATCH path=(n:Test)-[r]-(m)
+    WHERE n.name = "{node}" AND n.name IS NOT NULL
+    WITH nodes(path) AS nodes, relationships(path) AS rels
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    """
+    result_direct = list(graph.run(direct_relationships_query, node=node))
+    direct_nodes.extend([node for record in result_direct for node in record['path_nodes']])
+    print(direct_relationships_query)
 
     for record in result_direct:
         path_nodes = record['path_nodes']
@@ -210,13 +196,11 @@ def query_inter_relationships_direct(graph: Graph, nodes:List[str]) -> str:
         graph_strings.add(graph_string)
         relationships_direct.add(rel_string)
         all_nodes.update(record['path_nodes'])
-    og_relationships_direct_list = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result_direct]
-    relationships_direct_list = list(relationships_direct) if relationships_direct else []
-    print("relationships_direct_list")
-    print(relationships_direct_list)
-    graph_strings_list = list(graph_strings)
+        og_relationships_direct_list.append({'nodes': path_nodes, 'relationships': path_relationships})
 
-    return og_relationships_direct_list, relationships_direct_list, graph_strings_list, all_nodes, direct_nodes
+    graph_strings_list = list(graph_strings)
+    og_relationships_direct_list = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result_direct]
+    return og_relationships_direct_list, graph_strings_list, all_nodes, direct_nodes
 
 def query_inter_relationships_between_direct(graph: Graph, direct_nodes, nodes:List[str]) -> str:
     # Query for paths between the nodes from the original list
@@ -225,41 +209,38 @@ def query_inter_relationships_between_direct(graph: Graph, direct_nodes, nodes:L
     print("number of direct nodes")
     print(len(total_nodes))
     # Query for paths between the nodes from the original list
+
     inter_between_direct_query = """
-    UNWIND $nodes AS nodeName
-    MATCH (n:Test) WHERE n.name = nodeName
-    WITH collect(n) as nodes
-    UNWIND nodes as n
-    MATCH (n)-[r]-(m) WHERE m IN nodes
-    RETURN n.name AS start_node, type(r) AS relationship_type, m.name AS end_node
-    LIMIT 16
+    MATCH (n:Test)
+    WHERE n.name IN $nodes
+    CALL apoc.path.spanningTree(n, {minLevel: 1, maxLevel: 3, limit: 100}) YIELD path
+    WITH nodes(path) AS nodes, relationships(path) AS rels
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
     """
-    result_inter_direct = graph.run(inter_between_direct_query, **query_parameters_2)
+
+    result_inter_direct = list(graph.run(inter_between_direct_query, **query_parameters_2))
     print(inter_between_direct_query)
-    # Combine results
-    relationships_inter_direct = set()
+
     all_nodes = set()
     graph_strings = set()
 
     for record in result_inter_direct:
         path_nodes = record['path_nodes']
         path_relationships = record['path_relationships']
-        rel_string = construct_path_string(path_nodes, path_relationships)
         graph_string = construct_relationship_string(path_nodes, path_relationships)
         graph_strings.add(graph_string)
-        relationships_inter_direct.add(rel_string)
         all_nodes.update(record['path_nodes'])
-
-    relationships_inter_direct_list = list(relationships_inter_direct) if relationships_inter_direct else []
-    print("relationships_inter_direct_list")
-    print(relationships_inter_direct_list)
+    relationships_inter_direct_list = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result_inter_direct]
     graph_strings_list = list(graph_strings)
+    print("number of inter direct relations:")
+    print(len(relationships_inter_direct_list))
     return relationships_inter_direct_list, graph_strings_list, all_nodes
 
 #######################################################################################################################################################################################
 
 def generate_answer(llm, relationships_list, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, gene_string: Optional[str] = None):
     prompt = PromptTemplate(template=Graph_Answer_Gen_Template, input_variables=["input", "question"])
+    #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     gen_chain = LLMChain(llm=llm, prompt=prompt)
     multi_hop = ', '.join(relationships_list)
     source_sentences = ','.join(source_list)
@@ -305,22 +286,23 @@ def generate_answer_airo(llm, relationships_list, source_list, target_list, inte
 
 #########################################################################################################################################################################################
 
-def cluster_and_select(sentences_list, progress_callback=None):
-    batch_size = 100
+def cluster_and_select_med(paths_list, n_cluster, progress_callback=None):
+    model = SentenceTransformer('pritamdeka/S-Bluebert-snli-multinli-stsb')
+    #pritamdeka/S-PubMedBert-MS-MARCO-SCIFACT
+    #pritamdeka/S-Bluebert-snli-multinli-stsb
+    #pritamdeka/S-PubMedBert-MS-MARCO
+    #pritamdeka/S-Bluebert-snli-multinli-stsb
+    #print(paths_list)
+    sentences_list = [construct_path_string(path['nodes'], path['relationships']) for path in paths_list]
+    batch_size = 2048
     total_iterations = len(sentences_list) // batch_size + 1
 
     embeddings_list = []
     for i in range(0, len(sentences_list), batch_size):
         batch_sentences = sentences_list[i:i+batch_size]
 
-        # Construct HuggingFaceEmbeddings instance for the batch
-        batch_hf = HuggingFaceEmbeddings(
-            model_name='sentence-transformers/all-mpnet-base-v2',
-            model_kwargs={'device': 'cuda'},
-            encode_kwargs={'normalize_embeddings': True})
-
         # Embed documents for the batch
-        batch_embeddings_array = np.array(batch_hf.embed_documents(batch_sentences))
+        batch_embeddings_array = np.array(model.encode(batch_sentences, convert_to_tensor=True).cpu())
         embeddings_list.append(batch_embeddings_array)
 
         # Update the progress bar
@@ -334,7 +316,7 @@ def cluster_and_select(sentences_list, progress_callback=None):
     scaler = StandardScaler()
     scaled_features = scaler.fit_transform(embeddings_array)
 
-    n_clusters = 15
+    n_clusters = n_cluster
     kmeans = KMeans(n_clusters=n_clusters, init="random", n_init=10, max_iter=300, random_state=42)
     kmeans.fit(scaled_features)
 
@@ -351,89 +333,60 @@ def cluster_and_select(sentences_list, progress_callback=None):
     print("done clustering")
     return final_result
 
-def cluster_and_select_med(paths_list, progress_callback=None):
+def embed_and_select_med(paths_list, question, n_embed):
     sentences_list = [construct_path_string(path['nodes'], path['relationships']) for path in paths_list]
-    batch_size = 100
-    total_iterations = len(sentences_list) // batch_size + 1
-
-    embeddings_list = []
-    for i in range(0, len(sentences_list), batch_size):
-        batch_sentences = sentences_list[i:i+batch_size]
-
-        # Construct HuggingFaceEmbeddings instance for the batch
-        batch_hf = HuggingFaceEmbeddings(
-            model_name='sentence-transformers/all-mpnet-base-v2',
-            model_kwargs={'device': 'cuda'},
-            encode_kwargs={'normalize_embeddings': True})
-
-        # Embed documents for the batch
-        batch_embeddings_array = np.array(batch_hf.embed_documents(batch_sentences))
-        embeddings_list.append(batch_embeddings_array)
-
-        # Update the progress bar
-        if progress_callback:
-            progress_callback((i + len(batch_sentences)) / len(sentences_list))
-
-    # Concatenate embeddings from all batches
-    embeddings_array = np.concatenate(embeddings_list)
-
-    # Continue with the remaining code
-    scaler = StandardScaler()
-    scaled_features = scaler.fit_transform(embeddings_array)
-
-    n_clusters = 15
-    kmeans = KMeans(n_clusters=n_clusters, init="random", n_init=10, max_iter=300, random_state=42)
-    kmeans.fit(scaled_features)
-
-    cluster_labels = kmeans.labels_
-    cluster_centers = kmeans.cluster_centers_
-
-    cluster_documents = {}
-    for i, label in enumerate(cluster_labels):
-        document = sentences_list[i]
-        if label not in cluster_documents:
-            cluster_documents[label] = document
-
-    final_result = list(cluster_documents.values())
-    print("done clustering")
-    return final_result
-
-def embed_and_select(sentences_list, question):
     hf = HuggingFaceEmbeddings(
-    model_name='pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb',
+    model_name='pritamdeka/S-Bluebert-snli-multinli-stsb',
     model_kwargs={'device': 'cuda'},
     encode_kwargs={'normalize_embeddings': True})
 
-    sentences = sentences_list
     db = Chroma.from_texts(sentences_list, hf)
-    retriever = db.as_retriever(search_kwargs={"k": 5})
-    docs = retriever.get_relevant_documents(question)
+    retriever = db.as_retriever(search_kwargs={"k": n_embed})
+    docs = retriever.get_relevant_documents(question)[:n_embed]
 
     final_result = [doc.page_content for doc in docs]
-
+    del db, retriever, docs, hf, sentences_list
     print("done embedding")
     return final_result
 
-def embed_and_select_med(paths_list, question):
-    sentences_list = [construct_path_string(path['nodes'], path['relationships']) for path in paths_list]
-    hf = HuggingFaceEmbeddings(
-    model_name='pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb',
-    model_kwargs={'device': 'cuda'},
-    encode_kwargs={'normalize_embeddings': True})
+def select_paths(paths, question, n_cluster, n_embed, progress_callback):
+    clustered_paths = cluster_and_select_med(paths, n_cluster, progress_callback)
+    selected_paths_stage1 = [path for path in paths if construct_path_string(path['nodes'], path['relationships']) in clustered_paths and None not in path['nodes']]
 
-    sentences = sentences_list
-    db = Chroma.from_texts(sentences_list, hf)
-    retriever = db.as_retriever(search_kwargs={"k": 5})
-    docs = retriever.get_relevant_documents(question)
+    # Create a dictionary mapping string representations to original paths
+    path_dict = {construct_path_string(path['nodes'], path['relationships']): path for path in selected_paths_stage1}
 
-    final_result = [doc.page_content for doc in docs]
+    embedded_paths = embed_and_select_med(selected_paths_stage1, question, n_embed)
+    selected_paths_stage2 = [path_dict[path_str] for path_str in embedded_paths]
+    
+    selected_nodes = [node for path in selected_paths_stage2 for node in path['nodes']]
+    paths_list = [construct_path_string(path['nodes'], path['relationships']) for path in selected_paths_stage2]
+    paths_list = list(set(paths_list))
+    unique_rels_list = [construct_relationship_string(path['nodes'], path['relationships']) for path in selected_paths_stage2]
+    unique_rels_list = list(set(unique_rels_list))
+    return paths_list, selected_nodes, unique_rels_list, selected_paths_stage2
 
-    print("done embedding")
-    return final_result
+def select_paths2(paths, question, n_cluster, n_embed, progress_callback):
+    clustered_paths = cluster_and_select_med(paths, n_cluster, progress_callback)
+    selected_paths_stage1 = [path for path in paths if construct_path_string(path['nodes'], path['relationships']) in clustered_paths and None not in path['nodes']]
+
+    # Create a dictionary mapping string representations to original paths
+    path_dict = {construct_path_string(path['nodes'], path['relationships']): path for path in selected_paths_stage1}
+
+    embedded_paths = embed_and_select_med(selected_paths_stage1, question, n_embed)
+    selected_paths_stage2 = [path_dict[path_str] for path_str in embedded_paths]
+    
+    selected_nodes = [node for path in selected_paths_stage2 for node in path['nodes']]
+    paths_list = [construct_path_string(path['nodes'], path['relationships']) for path in selected_paths_stage2]
+    paths_list = list(set(paths_list))
+    unique_rels_list = [construct_relationship_string(path['nodes'], path['relationships']) for path in selected_paths_stage2]
+    unique_rels_list = list(set(unique_rels_list))
+    return paths_list, selected_nodes, unique_rels_list
 
 #####################################################################################################################################################################################################
 
 class KnowledgeGraphRetrieval:
+    # 5, 5, 3, 3, 10, 30, 10
     def __init__(self, uri, username, password, llm, entity_types):
         self.graph = Graph(uri, auth=(username, password))
         self.llm = llm
@@ -448,149 +401,138 @@ class KnowledgeGraphRetrieval:
         # Check if result is a tuple of length 2
         if isinstance(result, tuple) and len(result) == 6:
             # Unpack result into relationship_context and associated_genes_string
-            unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels, final_path_nodes, gene_string = result
+            unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels = result
         else:
             # If not, relationship_context is result and associated_genes_string is an empty string
-            unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels, final_path_nodes  = result
-            gene_string = ""
+            unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels  = result
+            #gene_string = ""
 
-        if len(unique_target_paths_list) > 15:
-            print("number of unique target paths:")
-            print(len(unique_target_paths_list))
-            clustered_unique_target_paths_list = cluster_and_select_med(unique_target_paths_list, progress_callback)
-            selected_target_paths_stage1 = [path for path in unique_target_paths_list if construct_path_string(path['nodes'], path['relationships']) in clustered_unique_target_paths_list]
-            embedded_selected_target_path_strings = embed_and_select_med(selected_target_paths_stage1, question)
-            selected_target_paths_stage2 = [path for path in selected_target_paths_stage1 if construct_path_string(path['nodes'], path['relationships']) in embedded_selected_target_path_strings]
-            selected_target_nodes = [node for path in selected_target_paths_stage2 for node in path['nodes']]
-            unique_target_paths_list = [construct_path_string(path['nodes'], path['relationships']) for path in selected_target_paths_stage2]
-        else:
-            unique_target_paths_list = unique_target_paths_list
+        final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 15, progress_callback)
+        print("final_target_paths")
+        print(len(final_target_paths))
 
-        if len(unique_source_paths_list) > 15:
-            print("number of unique source paths:")
-            print(len(unique_source_paths_list))        
-            clustered_unique_source_paths_list = cluster_and_select_med(unique_source_paths_list, progress_callback)
-            selected_source_paths_stage1 = [path for path in unique_source_paths_list if construct_path_string(path['nodes'], path['relationships']) in clustered_unique_source_paths_list]
-            embedded_selected_source_path_strings = embed_and_select_med(selected_source_paths_stage1, question)
-            selected_source_paths_stage2 = [path for path in selected_source_paths_stage1 if construct_path_string(path['nodes'], path['relationships']) in embedded_selected_source_path_strings]
-            selected_source_nodes = [node for path in selected_source_paths_stage2 for node in path['nodes']]
-            unique_source_paths_list = [construct_path_string(path['nodes'], path['relationships']) for path in selected_source_paths_stage2]
-        else:
-            unique_source_paths_list = unique_source_paths_list
-
-        if len(unique_relationships_list) >15:
-            print("number of unique relationships:")
-            print(len(unique_relationships_list))
-            clustered_unique_relationships_list = cluster_and_select(unique_relationships_list, progress_callback)
-            unique_relationships_list = embed_and_select(clustered_unique_relationships_list, question)
-        else:
-            unique_relationships_list = unique_relationships_list
-
-        query_nodes = selected_target_nodes + selected_source_nodes
+        final_source_paths, selected_source_nodes, source_unique_rels, selected_source_paths = select_paths(unique_source_paths_list, question, len(unique_source_paths_list)//15, 15, progress_callback)
+        print("final_source_paths")
+        print(len(final_source_paths))
+        
+        final_inter_relationships, selected_inter_nodes, inter_unique_rels, selected_inter_paths = select_paths(unique_relationships_list, question, len(unique_relationships_list), len(unique_relationships_list), progress_callback)
+        print("final_inter_relationships")
+        print(len(final_inter_relationships))
+        
+        query_nodes = selected_target_nodes + selected_source_nodes + selected_inter_nodes
         query_nodes = (set(query_nodes))
-        query_nodes.update(final_path_nodes)
-        query_nodes = list(query_nodes)
+        names_set = set(names_list)
+        #query_nodes.update(final_path_nodes)
+        all_first_nodes = list(query_nodes)
+        query_nodes = [name for name in query_nodes if name.lower() not in names_set]
         print("query nodes")
         print(len(query_nodes))
+        print(query_nodes)
 
-        og_target_direct_relations, relationships_inter_direct_list, inter_unique_graph_rels, source_and_target_nodes1, direct_nodes = query_inter_relationships_direct(self.graph, query_nodes)
-        print("number of unique inter_direct_relationships:")
-        print(len(og_target_direct_relations))
+        og_target_direct_relations = set()
+        selected_inter_direct_nodes = set()
+        inter_direct_unique_graph_rels = set()
+        final_selected_target_direct_paths = []
+
+        for node in query_nodes:
+            target_direct_relations, inter_direct_graph_rels, source_and_target_nodes1, direct_nodes = query_inter_relationships_direct1(self.graph, node)
+            if target_direct_relations:
+                if len(target_direct_relations) < 15:
+                    inter_direct_relationships, selected_nodes, inter_direct_unique_rels, selected_target_direct_paths = select_paths(target_direct_relations, question, len(target_direct_relations), 3, progress_callback)
+                else:
+                    inter_direct_relationships, selected_nodes, inter_direct_unique_rels, selected_target_direct_paths = select_paths(target_direct_relations, question, len(target_direct_relations)//15, 3, progress_callback)
+                og_target_direct_relations.update(inter_direct_relationships)
+                selected_inter_direct_nodes.update(selected_nodes)
+                inter_direct_unique_graph_rels.update(inter_direct_unique_rels)
+                final_selected_target_direct_paths.append(selected_target_direct_paths)
+                print("success")
+                print(len(inter_direct_relationships))
+                print(inter_direct_relationships)
+            else:
+                print("skipping")
+                continue
+        print("nodes before clustering and embedding")
+        print(len(selected_inter_direct_nodes))
+        #flat_selected_target_direct_paths = [item for sublist in final_selected_target_direct_paths for item in sublist]
+        #final_inter_direct_relationships, final_selected_nodes, final_inter_direct_rels, selected_inter_direct_paths = select_paths(paths=flat_selected_target_direct_paths, question=question, n_cluster=len(list(og_target_direct_relations))//15, n_embed=30, progress_callback=progress_callback)
         
-        clustered_inter_direct_relationships = cluster_and_select_med(og_target_direct_relations, progress_callback)
-        selected_inter_direct_stage1 = [path for path in og_target_direct_relations if construct_path_string(path['nodes'], path['relationships']) in clustered_inter_direct_relationships]
-        embedded_inter_direct_strings = embed_and_select_med(selected_inter_direct_stage1, question)
-        selected_inter_direct_stage2 = [path for path in selected_inter_direct_stage1 if construct_path_string(path['nodes'], path['relationships']) in embedded_inter_direct_strings]
-        selected_inter_direct_nodes = [node for path in selected_inter_direct_stage2 for node in path['nodes']]
-        unique_target_direct_relations = [construct_path_string(path['nodes'], path['relationships']) for path in selected_inter_direct_stage2]
-    
-        target_inter_relations, inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, selected_inter_direct_nodes, query_nodes)
+        final_inter_direct_relationships = list(og_target_direct_relations)
+        #final_selected_inter_direct_nodes = list(set(final_selected_nodes))
+        #final_inter_direct_unique_graph_rels = list(set(final_inter_direct_rels))
+        final_selected_inter_direct_nodes = list(set(selected_inter_direct_nodes))
+        final_inter_direct_unique_graph_rels = list(set(inter_direct_unique_graph_rels))
+        #og_target_direct_relations, relationships_inter_direct_list, inter_direct_unique_graph_rels, source_and_target_nodes1, direct_nodes = query_inter_relationships_direct1(self.graph, query_nodes)
+        print("number of unique inter_direct_relationships:")
+        print(len(final_inter_direct_relationships))
 
-        if len(target_inter_relations) > 15:
-            print("number of unique inter_direct_inter_relationships:")
-            print(len(target_inter_relations))
-            clustered_relationships_target_inter_relations = cluster_and_select(target_inter_relations, progress_callback)
-            unique_target_inter_relations = embed_and_select(clustered_relationships_target_inter_relations, question)
+        if final_inter_direct_relationships:
+            
+            target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, final_selected_inter_direct_nodes, query_nodes)
+            if len(target_inter_relations) < 50:
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 10, progress_callback)
+            else:
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 30, progress_callback)
+
         else:
-            unique_target_inter_relations = target_inter_relations
-            print("number of unique inter_direct_inter_relationships:")
-            print(len(unique_target_inter_relations))
+            final_inter_direct_relationships = []
+            selected_inter_direct_nodes = []
 
+            target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, query_nodes, query_nodes)
+            if target_inter_relations:
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 10, progress_callback)
+            else:
+                final_inter_direct_inter_relationships = []
+                selected_inter_direct_inter_nodes = []
+
+        print("final_inter_direct_inter_relationships")
+        print(len(final_inter_direct_inter_relationships))
         all_nodes = set()
-        all_nodes.update(source_and_target_nodes1)
-        all_nodes.update(source_and_target_nodes2)
-        all_nodes.update(final_path_nodes)
+        if selected_inter_direct_nodes:
+            all_nodes.update(selected_inter_direct_nodes)
+        if selected_inter_direct_inter_nodes:
+            all_nodes.update(selected_inter_direct_inter_nodes)
+        all_nodes.update(query_nodes)
         print("all nodes:")
         print(len(all_nodes))
-        print(all_nodes)
+        #print(all_nodes)
+
         all_unique_graph_rels = set()
-        all_unique_graph_rels.update(unique_graph_rels)
-        all_unique_graph_rels.update(inter_unique_graph_rels)
+        all_unique_graph_rels.update(target_unique_rels)
+        all_unique_graph_rels.update(source_unique_rels)
+        all_unique_graph_rels.update(inter_unique_rels)
+        all_unique_graph_rels.update(final_inter_direct_unique_graph_rels)
+        all_unique_graph_rels.update(inter_direct_inter_unique_rels)
+
 
 ########################################################################################################
         
         if generate_an_answer == True:
+            #final_context = generate_answer_airo(llm=self.llm,
             final_context = generate_answer(llm=self.llm, 
-                                            relationships_list=unique_relationships_list,
+                                            relationships_list=final_inter_relationships,
                                             question=question,
-                                            source_list=unique_source_paths_list,
-                                            target_list=unique_target_paths_list,
-                                            inter_direct_list=unique_target_direct_relations,
-                                            inter_direct_inter=unique_target_inter_relations,
+                                            source_list=final_source_paths,
+                                            target_list=final_target_paths,
+                                            inter_direct_list=final_inter_direct_relationships,
+                                            inter_direct_inter=final_inter_direct_inter_relationships,
                                             source=names_list[0],
                                             target=names_list[1]
                                             )
-            #final_context = generate_answer_airo(llm=self.llm, 
-            #                    relationships_list=unique_relationships_list,
-            #                    question=question,
-            #                    source_list=unique_source_paths_list,
-            #                    target_list=unique_target_paths_list,
-            #                    inter_direct_list=unique_relationships_direct_list,
-            #                    inter_direct_inter=relationships_inter_direct_list,
-            #                    source=names_list[0],
-            #                    target=names_list[1]
-            #                    )
+                                            
+
             answer = final_context
 
-
         response = {"result": answer, 
-                    "multi_hop_relationships": unique_relationships_list,
-                    "source_relationships": unique_source_paths_list,
-                    "target_relationships": unique_target_paths_list,
-                    "inter_direct_relationships": unique_target_direct_relations,
-                    "inter_direct_inter_relationships": unique_target_inter_relations,
+                    "multi_hop_relationships": final_inter_relationships,
+                    "source_relationships": final_source_paths,
+                    "target_relationships": final_target_paths,
+                    "inter_direct_relationships": final_inter_direct_relationships,
+                    "inter_direct_inter_relationships": final_inter_direct_inter_relationships,
                     "all_nodes": all_nodes,
                     "all_rels": all_unique_graph_rels}
-
-        if gene_string:
-            print(gene_string)
-
-            if generate_an_answer == True:
-                del final_context
-                final_context = generate_answer(llm=self.llm, 
-                                                relationships_list=unique_relationships_list,
-                                                question=question,
-                                                source_list=unique_source_paths_list,
-                                                target_list=unique_target_paths_list,
-                                                inter_direct_list=unique_relationships_direct_list,
-                                                inter_direct_inter=relationships_inter_direct_list,
-                                                source=names_list[0],
-                                                target=names_list[1],
-                                                gene_string=gene_string
-                                                )
-                #final_context = generate_answer_airo(llm=self.llm, 
-                #                    relationships_list=unique_relationships_list,
-                #                    question=question,
-                #                    source_list=unique_source_paths_list,
-                #                    target_list=unique_target_paths_list,
-                #                    inter_direct_list=unique_relationships_direct_list,
-                #                    inter_direct_inter=relationships_inter_direct_list,
-                #                    source=names_list[0],
-                #                    target=names_list[1]
-                #                    )
-
-                answer = final_context
-
         return response
+
+
+
 
 
