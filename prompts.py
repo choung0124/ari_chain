@@ -20,10 +20,11 @@ Tell me the entity types of the bimedical entities provided in the input, choose
 Entity Types:
 Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
 Your response should be a list of tuples, and strictly follow this format:
-Entities: [(Entity1_name, Entity1_ype), Entity2_name, Entity2_type)]
+Entities: [(Entity1_name, Entity1_ype), (Entity2_name, Entity2_type)]
 Response example:
 Entities: [("Alzheimer's Disease", "Disease"), ("Autophagy", "Biological_process")]
-Input: {input}
+
+### Input: {input}
 
 ### Response:"""
 
@@ -38,12 +39,12 @@ Input: {input}
 ASSISTANT:"""
 
 Entity_Extraction_Template_airo = """You are an artificial intelligence assistant that extracts biomedical entities from the question asked by the user.
-USER: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
+USER: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format:
 Entities: [extracted entity1, extracted entity2]
 Question: {input}
 ASSISTANT:"""
 
-Entity_Extraction_Template_alpaca = """You are an artificial intelligence assistant that extracts biomedical entities from any given question.
+Entity_Extraction_Template = """You are an artificial intelligence assistant that extracts biomedical entities from any given question.
 
 ### Instruction: 
 Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
@@ -52,6 +53,17 @@ Question: {input}
 
 ### Response:
 """
+
+Entity_Extraction_Template_alpaca = """You are an artificial intelligence assistant that extracts biomedical entities from any given question.
+
+### Instruction: 
+Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a list in your response. Your response should strictly follow this format:
+Entities: [extracted entity1, extracted entity2]
+Question: {input}
+
+### Response:
+"""
+
 Coherent_sentences_template1 = """USER: BEGININPUT
 BEGINCONTEXT
 ENDCONTEXT
@@ -83,14 +95,19 @@ Summarize this information, include only the generated summary in your response:
 ### Response:
 """
 
-Graph_Answer_Gen_Template = """### Instruction: 
-Give a detailed answer the question, using information from the context below:
+Graph_Answer_Gen_Template_alpaca = """### Instruction: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Question: {question}
 Context: 
 {input}
-Question: {question}
 
 ### Response:
 """
+
+Graph_Answer_Gen_Template = """### Human: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Question: {question}
+Context: 
+{input}
+### Assistant: """
 
 Graph_Answer_Gen_Template_airo = """USER: BEGININPUT
 BEGINCONTEXT
