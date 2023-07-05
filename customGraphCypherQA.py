@@ -89,7 +89,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
     print(query)
     result = graph.run(query)
 
-    if not result and repeat==True:
+    if not result:
         source_entity_type = entity_types[f"{names[0]}"]
         target_entity_type = entity_types[f"{names[1]}"]
         if source_entity_type == 'Drug':
@@ -136,7 +136,6 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
 
     result = graph.run(query)
     #if not result and source_entity_type == "Drug":
-        
     # Initialize a set to store unique associated genes
     unique_source_paths = []
     unique_target_paths = []
@@ -407,11 +406,11 @@ class KnowledgeGraphRetrieval:
             unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels  = result
             #gene_string = ""
 
-        final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 15, progress_callback)
+        final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 5, progress_callback)
         print("final_target_paths")
         print(len(final_target_paths))
 
-        final_source_paths, selected_source_nodes, source_unique_rels, selected_source_paths = select_paths(unique_source_paths_list, question, len(unique_source_paths_list)//15, 15, progress_callback)
+        final_source_paths, selected_source_nodes, source_unique_rels, selected_source_paths = select_paths(unique_source_paths_list, question, len(unique_source_paths_list)//15, 5, progress_callback)
         print("final_source_paths")
         print(len(final_source_paths))
         
