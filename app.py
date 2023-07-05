@@ -22,7 +22,7 @@ from st_aggrid import AgGrid
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://boys-agencies-publishers-refer.trycloudflare.com/"
+    model_url = "https://plastic-exist-solving-nl.trycloudflare.com/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
     Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
