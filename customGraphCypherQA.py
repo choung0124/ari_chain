@@ -21,15 +21,32 @@ from tqdm import tqdm
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 
-def get_source_and_target_paths(graph: Graph, label: str, names: List[str]) -> Tuple[List[Relationship], List[Relationship]]:
+def get_node_label(graph: Graph, node_name: str) -> str:
+    query = f"""
+    MATCH (node)
+    WHERE toLower(node.name) = toLower("{node_name}")
+    RETURN head(labels(node)) AS FirstLabel
+    """
+    result = graph.run(query).data()
+    if result:
+        print(query)
+        return result[0]['FirstLabel']
+    else:
+        return None
+
+def get_source_and_target_paths(graph: Graph, names: List[str]) -> Tuple[List[Relationship], List[Relationship]]:
+    source_label = get_node_label(graph, names[0])
+    target_label = get_node_label(graph, names[1])
+
     query_source = f"""
-    MATCH path=(source:{label})-[*1..2]->(node)
+    MATCH path=(source:{source_label})-[*1..2]->(node)
     WHERE toLower(source.name) = toLower("{names[0]}")
     WITH relationships(path) AS rels, nodes(path) AS nodes
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
     """
+
     query_target = f"""
-    MATCH path=(target:{label})-[*1..2]->(node)
+    MATCH path=(target:{target_label})-[*1..2]->(node)
     WHERE toLower(target.name) = toLower("{names[1]}")
     WITH relationships(path) AS rels, nodes(path) AS nodes
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
@@ -75,11 +92,12 @@ def construct_relationship_string(nodes: List[str], relationships: List[str]) ->
         path_elements.append(f"{nodes[i]} -> {relationships[i]} -> {nodes[i + 1]}")
     return ", ".join(path_elements)
 
-def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types: Dict[str, str], repeat: bool) -> List[Dict[str, Any]]:
-
+def find_shortest_paths(graph: Graph, names: List[str], entity_types: Dict[str, str], repeat: bool) -> List[Dict[str, Any]]:
+    source_label = get_node_label(graph, names[0])
+    target_label = get_node_label(graph, names[1])
     names_conditions = f'WHERE toLower(source.name) = toLower("{names[0]}") AND toLower(target.name) = toLower("{names[1]}")'
     query = f"""
-    MATCH (source:{label}), (target:{label})
+    MATCH (source:{source_label }), (target:{target_label})
     {names_conditions}
     MATCH p = allShortestPaths((source)-[*]-(target))
     WITH p, [rel IN relationships(p) | type(rel)] AS path_relationships
@@ -94,7 +112,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
         target_entity_type = entity_types[f"{names[1]}"]
         if source_entity_type == 'Drug':
             source_test_query = f"""
-            MATCH (p:{label})
+            MATCH (p:Drug)
             WHERE p.name = "{names[0]}"
             RETURN p
             """
@@ -103,7 +121,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
                 similar_compounds = get_similar_compounds({names[0]}, 20)
                 for compound in similar_compounds[1:]:
                     source_similar_compounds_test_query = f"""
-                    MATCH (p:{label})
+                    MATCH (p:Drug)
                     WHERE p.name = "{compound}"
                     RETURN p
                     """
@@ -115,7 +133,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
 
         if target_entity_type == 'Drug':
             target_test_query = f"""
-            MATCH (p:{label})
+            MATCH (p:Drug)
             WHERE p.name = "{names[1]}"
             RETURN p
             """            
@@ -124,7 +142,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
                 similar_compounds = get_similar_compounds({names[1]}, 20)
                 for compound in similar_compounds[1:]:  # start from index 1 to skip the first similar compound
                     target_similar_compounds_test_query = f"""
-                    MATCH (p:{label})
+                    MATCH (p:Drug)
                     WHERE p.name = "{compound}"
                     RETURN p
                     """
@@ -149,7 +167,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
         rel_string = construct_relationship_string(path_nodes, path_relationships)
         unique_graph_rels.add(rel_string)
     
-    source_paths, target_paths, source_relationships, target_relationships = get_source_and_target_paths(graph, label, names)
+    source_paths, target_paths, source_relationships, target_relationships = get_source_and_target_paths(graph, names)
 
     for path in source_paths:
         unique_source_paths.append(path)
@@ -171,6 +189,7 @@ def find_shortest_paths(graph: Graph, label: str, names: List[str], entity_types
     return unique_rel_paths, unique_target_paths_list, unique_source_paths_list, unique_graph_rels_list
 
 def query_inter_relationships_direct1(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
+    node_label = get_node_label(graph, node)
     all_nodes = set()
     graph_strings = set()
     relationships_direct = set()
@@ -178,7 +197,7 @@ def query_inter_relationships_direct1(graph: Graph, node:str) -> Tuple[List[Dict
     direct_nodes = []
 
     direct_relationships_query = f"""
-    MATCH path=(n:Test)-[r]-(m)
+    MATCH path=(n:{node_label})-[r]-(m)
     WHERE n.name = "{node}" AND n.name IS NOT NULL
     WITH nodes(path) AS nodes, relationships(path) AS rels
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
@@ -202,16 +221,18 @@ def query_inter_relationships_direct1(graph: Graph, node:str) -> Tuple[List[Dict
     return og_relationships_direct_list, graph_strings_list, all_nodes, direct_nodes
 
 def query_inter_relationships_between_direct(graph: Graph, direct_nodes, nodes:List[str]) -> str:
-    # Query for paths between the nodes from the original list
-    query_parameters_2 = {"nodes": list(nodes) + direct_nodes}
+    node_labels = [get_node_label(graph, node) for node in nodes + direct_nodes]
+    unique_labels = list(set(node_labels))
+    
+    query_parameters_2 = {"nodes": list(nodes) + direct_nodes, "unique_labels": unique_labels}
     total_nodes = list(nodes) + direct_nodes
     print("number of direct nodes")
     print(len(total_nodes))
     # Query for paths between the nodes from the original list
 
     inter_between_direct_query = """
-    MATCH (n:Test)
-    WHERE n.name IN $nodes
+    MATCH (n)
+    WHERE n.name IN $nodes AND any(label in labels(n) WHERE label IN $unique_labels)
     CALL apoc.path.spanningTree(n, {minLevel: 1, maxLevel: 3, limit: 100}) YIELD path
     WITH nodes(path) AS nodes, relationships(path) AS rels
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
@@ -393,9 +414,9 @@ class KnowledgeGraphRetrieval:
 
     def _call(self, names_list, question, generate_an_answer, related_interactions, progress_callback=None):
         if related_interactions == True:
-            result = find_shortest_paths(self.graph, "Test", names_list, self.entity_types, repeat=True)
+            result = find_shortest_paths(self.graph, names_list, self.entity_types, repeat=True)
         else:
-            result = find_shortest_paths(self.graph, "Test", names_list, self.entity_types, repeat=True)
+            result = find_shortest_paths(self.graph, names_list, self.entity_types, repeat=True)
 
         # Check if result is a tuple of length 2
         if isinstance(result, tuple) and len(result) == 6:
@@ -406,11 +427,11 @@ class KnowledgeGraphRetrieval:
             unique_relationships_list, unique_target_paths_list, unique_source_paths_list, unique_graph_rels  = result
             #gene_string = ""
 
-        final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 5, progress_callback)
+        final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 3, progress_callback)
         print("final_target_paths")
         print(len(final_target_paths))
 
-        final_source_paths, selected_source_nodes, source_unique_rels, selected_source_paths = select_paths(unique_source_paths_list, question, len(unique_source_paths_list)//15, 5, progress_callback)
+        final_source_paths, selected_source_nodes, source_unique_rels, selected_source_paths = select_paths(unique_source_paths_list, question, len(unique_source_paths_list)//15, 3, progress_callback)
         print("final_source_paths")
         print(len(final_source_paths))
         
@@ -470,7 +491,7 @@ class KnowledgeGraphRetrieval:
             if len(target_inter_relations) < 50:
                 final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 10, progress_callback)
             else:
-                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 30, progress_callback)
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 5, progress_callback)
 
         else:
             final_inter_direct_relationships = []
