@@ -1,28 +1,22 @@
-import re
 import streamlit as st
 from transformers import logging
 from langchain.llms import TextGen
-from Custom_Agent import get_umls_id, CustomLLMChain
-from customGraphCypherQA import KnowledgeGraphRetrieval
-from prompts import Entity_Extraction_Template_alpaca, Entity_type_Template_airo, Entity_Extraction_Template_airo, Entity_Extraction_Template,  Entity_type_Template
 from langchain.prompts import PromptTemplate
 from langchain import LLMChain
-import ast
-from graph_visualizer import parse_relationships
 import streamlit as st
-from streamlit_agraph import agraph, Node, Edge, Config
-import streamlit.components.v1 as components
 import streamlit as st
-import networkx as nx
-import pandas as pd
-import plotly.express as px
-from st_aggrid import AgGrid
+from pyvis.network import Network
+from CustomLibrary.Custom_Agent import CustomLLMChain, CustomLLMChainAdditionalEntities
+from CustomLibrary.Custom_Prompts import Entity_type_Template_add, Entity_Extraction_Template_alpaca, Entity_type_Template_airo, Entity_Extraction_Template_airo, Entity_Extraction_Template,  Entity_type_Template, Additional_Entity_Extraction_Template
+from CustomLibrary.App_Utils import get_umls_info, extract_entities, get_names_list, get_names_list, get_entity_types, get_additional_entity_umls_dict
+from CustomLibrary.Graph_Visualize import parse_relationships_pyvis
+from CustomLibrary.Graph_Class import KnowledgeGraphRetrieval
 #Could there be a synergistic drug-drug interaction between lamotrigine and rivastigmine for lewy body dementia?
 # Set logging verbosity
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://plastic-exist-solving-nl.trycloudflare.com/"
+    model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
     Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
@@ -49,47 +43,35 @@ def progress_callback(progress):
 
 question = st.text_input("Enter your question")
 if question:
+    additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template, input_variables=["input", "entities"])
     llm, entity_extraction_chain = initialize_models()
     uri, username, password = initialize_knowledge_graph()
+    additional_entity_extraction_chain = CustomLLMChainAdditionalEntities(prompt=additional_entity_extraction_prompt, llm=llm, output_key="output",)
+    
     Entity_type_prompt = PromptTemplate(template=Entity_type_Template, input_variables=["input"])
+    Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add, input_variables=["input"])
     #Entity_type_prompt = PromptTemplate(template=Entity_type_Template_airo, input_variables=["input"])
     Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
+    Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=llm)
+    
     if st.button("Check Interaction"):
         with st.spinner("Checking drug interaction..."):
             # Entity extraction
-            result = entity_extraction_chain.run(question)
-            entities = result
- 
-            entities_umls_ids = {}
-            for entity in entities:
-                umls_id = get_umls_id(entity)
-                entities_umls_ids[entity] = umls_id
+            entities, additional_entities = extract_entities(question, entity_extraction_chain, additional_entity_extraction_chain)
 
-            names_list = []
-            for entity, umls_info_list in entities_umls_ids.items():
-                if umls_info_list:
-                    umls_info = umls_info_list[0]
-                    match = re.search(r"Name: (.*?) UMLS_CUI: (\w+)", umls_info)
-                    if match:
-                        umls_name = match.group(1)
-                        umls_cui = match.group(2)
-                        names_list.append(umls_name)
-                    else:
-                        names_list.append(entity)
-                else:
-                    names_list.append(entity)
-            print(names_list)
-            Entity_type_chain_result = Entity_type_chain.run(names_list)
-            print(Entity_type_chain_result)
-            start = Entity_type_chain_result.index("[")
-            end = Entity_type_chain_result.index("]") + 1
-            list_str = Entity_type_chain_result[start:end]
-            extracted_types = ast.literal_eval(list_str)
+            entities_umls_ids = get_umls_info(entities)
 
-            entity_types = {entity_info[0]: entity_info[1] for entity_info in extracted_types}
-            print(entity_types)
+            names_list = get_names_list(entities_umls_ids)
+
+            entity_types = get_entity_types(Entity_type_chain, names_list)
+
+            if additional_entities:
+                additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
+                knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
+            else:
+                knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types)
+
             # Query the knowledge graph
-            knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types)
             graph_query = knowledge_graph._call(names_list, 
                                                 question, 
                                                 generate_an_answer=True, 
@@ -105,46 +87,37 @@ if question:
             all_nodes = graph_query["all_nodes"]
             all_rels = graph_query['all_rels']
 
-            associated_genes_string = graph_query.get("associated_genes_string")
-            def enclose_in_quotes(relationships):
-                quoted_relationships = []
-                for relationship in relationships:
-                    elements = relationship.split(' -> ')
-                    quoted_elements = ['"{}"'.format(e) for e in elements]
-                    quoted_relationship = ' -> '.join(quoted_elements)
-                    quoted_relationships.append(quoted_relationship)
-                return quoted_relationships
             #rint(all_rels)
             print(len(all_rels))
             nodes = set()
 
-            #st.subheader("Result:")
-            #st.write("Answer:")
-            #st.write(context)
-            # Assuming paths is a list of your paths
-            nodes, edges = parse_relationships(all_rels)
-            #print(nodes)
-            #print(edges)
-            node_objects = [Node(id=node, label=node, size=5) for node in nodes]
-            edge_objects = [Edge(source=edge[0], target=edge[1]) for edge in edges]
-
-            # Separate the layout into two columns
+            nodes, edges = parse_relationships_pyvis(all_rels)
             col1, col2 = st.columns([3, 2], gap="small")
-
 
             # Display the graph in the left column
             with col1:
                 st.subheader("Network:")
-                config = Config(
-                    height=1200,
-                    width=1200, 
-                    nodeHighlightBehavior=True,
-                    physics=True,
-                    highlightColor="#F7A7A6",
-                    directed=True,
-                    collapsible=True
-                )
-                agraph(nodes=node_objects, edges=edge_objects, config=config)   # Using agraph() as a standalone function
+                net = Network(height='750px', 
+                              width='100%', 
+                              bgcolor='#dcfaf3', 
+                              font_color='black',
+                              directed=True,
+                              )
+
+                # add nodes
+                for node in nodes:
+                    net.add_node(node, label=node, title=node, url="http://example.com/{}".format(node))
+
+                # add edges
+                for edge in edges:
+                    net.add_edge(edge[0], edge[1], title=edge[2])
+                net.toggle_physics(True)
+
+                # save to HTML file
+                net.save_graph('network.html')
+
+                # display in streamlit
+                st.components.v1.html(open('network.html', 'r').read(), height=750) # Using agraph() as a standalone function
             # Display the answer in the right column
 
             col2.subheader("Answer:")
