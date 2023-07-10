@@ -8,15 +8,24 @@ import streamlit as st
 from pyvis.network import Network
 from CustomLibrary.Custom_Agent import CustomLLMChain, CustomLLMChainAdditionalEntities
 from CustomLibrary.Custom_Prompts import Entity_type_Template_add, Entity_Extraction_Template_alpaca, Entity_type_Template_airo, Entity_Extraction_Template_airo, Entity_Extraction_Template,  Entity_type_Template, Additional_Entity_Extraction_Template
-from CustomLibrary.App_Utils import get_umls_info, extract_entities, get_names_list, get_names_list, get_entity_types, get_additional_entity_umls_dict
+from CustomLibrary.App_Utils import(
+    get_umls_info, 
+    extract_entities, 
+    get_names_list, 
+    get_names_list, 
+    get_entity_types, 
+    get_additional_entity_umls_dict,
+    create_and_display_network
+)
 from CustomLibrary.Graph_Visualize import parse_relationships_pyvis
 from CustomLibrary.Graph_Class import KnowledgeGraphRetrieval
+from CustomLibrary.Pharos_Graph_QA import PharosGraphQA
 #Could there be a synergistic drug-drug interaction between lamotrigine and rivastigmine for lewy body dementia?
 # Set logging verbosity
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "http://127.0.0.1:5000/"
+    model_url = "https://summit-area-your-parker.trycloudflare.com/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
     Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
@@ -64,9 +73,11 @@ if question:
             names_list = get_names_list(entities_umls_ids)
 
             entity_types = get_entity_types(Entity_type_chain, names_list)
+            print(entity_types)
 
             if additional_entities:
                 additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
+                print(additional_entity_umls_dict)
                 knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
             else:
                 knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types)
@@ -97,27 +108,7 @@ if question:
             # Display the graph in the left column
             with col1:
                 st.subheader("Network:")
-                net = Network(height='750px', 
-                              width='100%', 
-                              bgcolor='#dcfaf3', 
-                              font_color='black',
-                              directed=True,
-                              )
-
-                # add nodes
-                for node in nodes:
-                    net.add_node(node, label=node, title=node, url="http://example.com/{}".format(node))
-
-                # add edges
-                for edge in edges:
-                    net.add_edge(edge[0], edge[1], title=edge[2])
-                net.toggle_physics(True)
-
-                # save to HTML file
-                net.save_graph('network.html')
-
-                # display in streamlit
-                st.components.v1.html(open('network.html', 'r').read(), height=750) # Using agraph() as a standalone function
+                create_and_display_network(nodes, edges)
             # Display the answer in the right column
 
             col2.subheader("Answer:")
@@ -136,3 +127,34 @@ if question:
             st.write(inter_direct_relationships)
             st.write(inter_direct_inter_relationships)
 
+            st.header("Pharos Graph QA")
+
+            if additional_entities:
+                additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
+                print(additional_entity_umls_dict)
+                Pharos = PharosGraphQA(llm, entity_types, additional_entity_types=additional_entity_umls_dict)
+            else:
+                Pharos = PharosGraphQA(llm, entity_types)
+
+            # Query the knowledge graph
+            graph_query = knowledge_graph._call(names_list, 
+                                                question, 
+                                                generate_an_answer=True, 
+                                                related_interactions=True,
+                                                progress_callback=progress_callback)
+            
+            Pharos_Context = graph_query["result"]
+            all_rels = graph_query['all_rels']
+            pharos_nodes = set()
+
+            pharos_nodes, pharos_edges = parse_relationships_pyvis(all_rels)
+            col1, col2 = st.columns([3, 2], gap="small")
+
+            # Display the graph in the left column
+            with col1:
+                st.subheader("Network:")
+                create_and_display_network(pharos_nodes, pharos_edges)
+
+            st.subheader("Relationships:")
+            col2.write(context)
+            # Display the relationships below the columns
