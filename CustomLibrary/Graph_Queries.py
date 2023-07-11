@@ -218,7 +218,7 @@ def query_inter_relationships_between_direct(graph: Graph, direct_nodes, nodes:L
     inter_between_direct_query = """
     MATCH (n)
     WHERE n.name IN $nodes AND any(label in labels(n) WHERE label IN $unique_labels)
-    CALL apoc.path.spanningTree(n, {minLevel: 1, maxLevel: 3, limit: -1}) YIELD path
+    CALL apoc.path.spanningTree(n, {minLevel: 1, maxLevel: 3, limit: 100}) YIELD path
     WITH nodes(path) AS nodes, relationships(path) AS rels
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
     """
