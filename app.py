@@ -90,12 +90,6 @@ if question:
                                                 progress_callback=progress_callback)
             
             context = graph_query["result"]
-            multi_hop_relationships = graph_query["multi_hop_relationships"]
-            source_relationships = graph_query["source_relationships"]
-            target_relationships = graph_query["target_relationships"]
-            inter_direct_relationships = graph_query["inter_direct_relationships"]
-            inter_direct_inter_relationships = graph_query["inter_direct_inter_relationships"]
-            all_nodes = graph_query["all_nodes"]
             all_rels = graph_query['all_rels']
 
             #rint(all_rels)
@@ -114,19 +108,8 @@ if question:
             col2.subheader("Answer:")
             col2.write(context)
             # Display the relationships below the columns
-            st.subheader("Relationships:")
 
-            # Create dataframes for each category of relationships
-            st.write("Multi-Hop Relationships:")
-            st.write(multi_hop_relationships)
-            st.write(f"Direct Relationships from {names_list[0]}")
-            st.write(source_relationships)
-            st.write(f"Direct Relationships from {names_list[1]}")
-            st.write(target_relationships)
-            st.write(f"Relationships between the targets of {names_list[0]} and {names_list[1]}")
-            st.write(inter_direct_relationships)
-            st.write(inter_direct_inter_relationships)
-
+            st.divider()
             st.header("Pharos Graph QA")
 
             if additional_entities:
@@ -143,6 +126,7 @@ if question:
                                                 related_interactions=True,
                                                 progress_callback=progress_callback)
             
+
             Pharos_Context = graph_query["result"]
             all_rels = graph_query['all_rels']
             pharos_nodes = set()
@@ -155,6 +139,6 @@ if question:
                 st.subheader("Network:")
                 create_and_display_network(pharos_nodes, pharos_edges)
 
-            st.subheader("Relationships:")
-            col2.write(context)
+            col2.subheader("Answer:")
+            col2.write(Pharos_Context)
             # Display the relationships below the columns
