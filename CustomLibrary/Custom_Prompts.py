@@ -42,7 +42,7 @@ Entity Types:
 Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
 Your response should be a list of tuples, use double quotes instead of single quotes.
 Your response should strictly follow this format:
-Entities: [(Entity_name, Entity_type)
+Entities: [(Entity_name, Entity_type)]
 Input: {input}
 ### Assistant:"""
 
@@ -73,21 +73,22 @@ Question: {input}
 """
 
 Entity_Extraction_Template = """### Human: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
-Entities: [extracted entity1, extracted entity2]
+Entities: ["extracted entity1", "extracted entity2"]
 Question: {input}
 ### Assistant:
 """
 
-Additional_Entity_Extraction_Template = """### Human: Below is a list of entities and the question they were extracted from, do not try to answer the question. If there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
-Response(If there are no other entities):
-Additional Entities: []
+Additional_Entity_Extraction_Template = """### Human: Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entities:
 Response(If there are other entities):
 Additional Entities: ["entity"]
+
+Response(If there are no other entities):
+Additional Entities: []
+
 Entities: {entities}
 Question: {input}
 ### Assistant:
 """
-
 
 Entity_Extraction_Template_alpaca = """You are an artificial intelligence assistant that extracts biomedical entities from any given question.
 
@@ -99,17 +100,6 @@ Question: {input}
 ### Response:
 """
 
-Coherent_sentences_template1 = """USER: BEGININPUT
-BEGINCONTEXT
-ENDCONTEXT
-{input}
-ENDINPUT
-BEGININSTRUCTION
-Turn these into coherent sentences
-ENDINSTRUCTION
-
-ASSISTANT:
-"""
 Coherent_sentences_template2 = """USER: 
 Turn these into coherent sentences
 {input}
