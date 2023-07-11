@@ -1,6 +1,8 @@
 from CustomLibrary.Utils import get_umls_id
 import re
 import ast
+import streamlit as st
+from pyvis.network import Network
 
 def extract_entities(question, entity_extraction_chain, additional_entity_extraction_chain):
     result = entity_extraction_chain.run(question)
@@ -82,3 +84,27 @@ def get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add):
             additional_entity_umls_dict[entity] = {"umls_cui": None, "entity_type": None}
 
     return additional_entity_umls_dict
+
+def create_and_display_network(nodes, edges):
+    net = Network(height='750px', 
+                  width='100%', 
+                  bgcolor='#dcfaf3', 
+                  font_color='black',
+                  directed=True,
+                  )
+
+    # add nodes
+    for node in nodes:
+        net.add_node(node, label=node, title=node, url="http://example.com/{}".format(node))
+
+    # add edges
+    for edge in edges:
+        net.add_edge(edge[0], edge[1], title=edge[2])
+    net.toggle_physics(True)
+
+    # save to HTML file
+    net.save_graph('network.html')
+
+    # display in streamlit
+    with st.spinner("Rendering network..."):
+        st.components.v1.html(open('network.html', 'r').read(), height=750)
