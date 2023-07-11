@@ -5,8 +5,17 @@ from langchain.chains import LLMChain
 from langchain.embeddings import HuggingFaceEmbeddings
 from py2neo import Graph
 import numpy as np
-from CustomLibrary.Graph_Queries import find_shortest_paths, query_inter_relationships_direct1, query_inter_relationships_between_direct
-from CustomLibrary.Graph_Utils import select_paths, select_paths2, generate_answer, generate_answer_airo
+from CustomLibrary.Graph_Queries import (
+    find_shortest_paths, 
+    query_inter_relationships_direct1, 
+    query_inter_relationships_between_direct
+)
+from CustomLibrary.Graph_Utils import (
+    select_paths, 
+    select_paths2, 
+    generate_answer, 
+    generate_answer_airo
+)
 
 class KnowledgeGraphRetrieval:
     def __init__(self, uri, username, password, llm, entity_types, additional_entity_types=None):
@@ -28,7 +37,7 @@ class KnowledgeGraphRetrieval:
             additional_entity_direct_graph_rels = []
             for entityname, entity_info in self.additional_entity_types.items():
                 additional_entity_direct, additional_entity_rels, addtional_entity_nodes, direct_nodes = query_inter_relationships_direct1(self.graph, entityname)
-                additional_entity_direct_relationships, additional_selected_nodes, additional_entity_direct_graph_rels, selected_target_direct_paths = select_paths(additional_entity_direct, question, len(additional_entity_direct)//15, 15, progress_callback)
+                additional_entity_direct_relationships, additional_selected_nodes, additional_entity_direct_graph_rels, selected_target_direct_paths = select_paths(additional_entity_direct, question, len(additional_entity_direct)//15, 10, progress_callback)
                 additional_entity_direct_graph_rels = list(set(rel for rel in additional_entity_direct_graph_rels))
                 additional_entity_direct_relationships = list(set(rel for rel in additional_entity_direct_relationships))
 
@@ -37,11 +46,11 @@ class KnowledgeGraphRetrieval:
         print("additional_entity_direct_graph_relationships")
         print(additional_entity_direct_relationships)
 
-        final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 3, progress_callback)
+        final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 10, progress_callback)
         print("final_target_paths")
         print(len(final_target_paths))
 
-        final_source_paths, selected_source_nodes, source_unique_rels, selected_source_paths = select_paths(unique_source_paths_list, question, len(unique_source_paths_list)//15, 3, progress_callback)
+        final_source_paths, selected_source_nodes, source_unique_rels, selected_source_paths = select_paths(unique_source_paths_list, question, len(unique_source_paths_list)//15, 10, progress_callback)
         print("final_source_paths")
         print(len(final_source_paths))
         
@@ -89,14 +98,14 @@ class KnowledgeGraphRetrieval:
 
         if final_inter_direct_relationships:
             target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, final_selected_inter_direct_nodes, query_nodes)
-            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 5, progress_callback)
+            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 30, progress_callback)
         else:
             final_inter_direct_relationships = []
             selected_inter_direct_nodes = []
 
             target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, query_nodes, query_nodes)
             if target_inter_relations:
-                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 10, progress_callback)
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 30, progress_callback)
             else:
                 final_inter_direct_inter_relationships = []
                 selected_inter_direct_inter_nodes = []
