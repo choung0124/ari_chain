@@ -18,9 +18,11 @@ class CustomLLMChain(LLMChain):
         return parse_llm_output(output)
 
 def parse_llm_output(output: str) -> list:
-    entities_match = re.search(r"Entities: (\[.*?\])", output)
+    entities_match = re.search(r"Entities: \[(.*?)\]", output)
     if entities_match:
-        entities = json.loads(entities_match.group(1))
+        entities = entities_match.group(1)
+        # Split the entities by comma and strip the surrounding spaces and quotes
+        entities = [e.strip().strip('"') for e in entities.split(',')]
         return entities
     else:
         return []
@@ -35,9 +37,11 @@ class CustomLLMChainAdditionalEntities(LLMChain):
         return parse_llm_output_additional(output)
 
 def parse_llm_output_additional(output: str) -> list:
-    entities_match = re.search(r"Additional Entities: (\[.*?\])", output)
+    entities_match = re.search(r"Additional Entities: \[(.*?)\]", output)
     if entities_match:
-        entities = json.loads(entities_match.group(1))
+        entities = entities_match.group(1)
+        # Split the entities by comma and strip the surrounding spaces and quotes
+        entities = [e.strip().strip('"') for e in entities.split(',')]
         return entities
     else:
         return []
