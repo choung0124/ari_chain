@@ -129,10 +129,12 @@ def query_similar_diseases(string):
     response = query_open_targets(query, variables)
     return response
 
-def query_drug_moa(string):
+
+
+def query_similar_drugs(string):
     query = """
-    query similarDrugMOA($chemblIds: String!) {
-      drug(efoId: $efoId) {
+    query similarDrugMOA($chemblId: String!) {
+      drug(chemblId: $chemblId) {
         similarEntities {
           score
           id
@@ -148,10 +150,10 @@ def query_drug_moa(string):
     }
     """
     id = query_open_targets_id(string, False, False, True)
-    variables = {"efoId": id}
+    variables = {"chemblId": id}
     response = query_open_targets(query, variables)
     return response
 
 
-print(query_similar_diseases("alzheimer's disease"))
+print(query_similar_drugs("mirodenafil"))
 
