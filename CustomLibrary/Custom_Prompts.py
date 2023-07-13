@@ -14,6 +14,13 @@ Node names: {question}
 
 ASSISTANT:"""
 
+Final_Answer_Template = """### Human: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Your Previous Answers:
+{CKG_Answer}
+{Pharos_Answer}
+{OpenTargets_Answer}
+Question: {question}
+### Assistant: """
 
 Entity_type_Template1 = """### Instruction:
 Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose from the list below:
