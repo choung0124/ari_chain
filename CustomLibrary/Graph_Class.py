@@ -133,7 +133,7 @@ class KnowledgeGraphRetrieval:
 
 ########################################################################################################
         
-        if generate_an_answer == True:
+        if generate_an_answer == True and self.additional_entity_types is not None:
             #final_context = generate_answer_airo(llm=self.llm,
             final_context = generate_answer(llm=self.llm, 
                                             relationships_list=final_inter_relationships,
@@ -146,9 +146,21 @@ class KnowledgeGraphRetrieval:
                                             target=names_list[1],
                                             additional_rels=additional_entity_direct_relationships
                                             )
+            
+        else:
+            final_context = generate_answer(llm=self.llm, 
+                                            relationships_list=final_inter_relationships,
+                                            question=question,
+                                            source_list=final_source_paths,
+                                            target_list=final_target_paths,
+                                            inter_direct_list=final_inter_direct_relationships,
+                                            inter_direct_inter=final_inter_direct_inter_relationships,
+                                            source=names_list[0],
+                                            target=names_list[1]
+                                            )
                                             
 
-            answer = final_context
+        answer = final_context
 
         response = {"result": answer, 
                     "multi_hop_relationships": final_inter_relationships,
