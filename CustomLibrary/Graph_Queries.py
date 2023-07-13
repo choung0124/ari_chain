@@ -16,6 +16,17 @@ def get_node_label(graph: Graph, node_name: str) -> str:
         return result[0]['FirstLabel'], result[0]['NodeName']
     else:
         return None, None
+    
+def get_node_labels(graph: Graph, node_names: List[str]) -> Dict[str, str]:
+    query = """
+    UNWIND $node_names AS node_name
+    MATCH (node)
+    WHERE toLower(node.name) = toLower(node_name)
+    RETURN node.name AS NodeName, head(labels(node)) AS FirstLabel
+    """
+    results = graph.run(query, node_names=node_names).data()
+    return {result['NodeName']: result['FirstLabel'] for result in results}
+
 
 def get_source_and_target_paths(graph: Graph, names: List[str]) -> Tuple[List[Relationship], List[Relationship]]:
     source_label, source_name = get_node_label(graph, names[0])
@@ -206,8 +217,9 @@ def query_inter_relationships_direct1(graph: Graph, node:str) -> Tuple[List[Dict
     return og_relationships_direct_list, graph_strings_list, all_nodes, direct_nodes
 
 def query_inter_relationships_between_direct(graph: Graph, direct_nodes, nodes:List[str]) -> str:
-    node_labels, node_names = zip(*[get_node_label(graph, node) for node in nodes + direct_nodes])
-    unique_labels = list(set(node_labels))
+    all_node_names = list(nodes) + direct_nodes
+    node_labels = get_node_labels(graph, all_node_names)
+    unique_labels = list(set(node_labels.values()))
     
     query_parameters_2 = {"nodes": list(nodes) + direct_nodes, "unique_labels": unique_labels}
     total_nodes = list(nodes) + direct_nodes
