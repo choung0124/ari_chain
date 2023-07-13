@@ -1,7 +1,8 @@
 import requests
 import json
 from typing import Optional
-from CustomLibrary.Graph_Utils import select_paths
+import numpy as np
+from CustomLibrary.Graph_Utils import select_paths_pharos
 
 class GraphQLClient:
     def __init__(self, endpoint):
@@ -77,12 +78,6 @@ def query_disease_associated_targets(string):
     response = send_query(query, variables)
     print(response)
 
-    formatted_targets = []
-    if response.get('data') and response['data'].get('targets') and response['data']['targets'].get('targets'):
-        for target in response['data']['targets']['targets']:
-            formatted_target = "{} -> ASSOCIATED_WITH -> {}".format(string, target['sym'])
-            formatted_targets.append(formatted_target)
-
     target_list = []
     formatted_targets = []
     if response.get('data') and response['data'].get('targets') and response['data']['targets'].get('targets'):
@@ -99,8 +94,8 @@ def query_disease_associated_targets(string):
                 'nodes': [string, target['sym']],
                 'relationships': ['ASSOCIATED_WITH']
             }
-            paths.append(path)
-    
+            paths.append(path)  # Wrap the path dictionary in a list before appending
+
 
     return response, formatted_targets, target_list, paths
 
@@ -138,8 +133,7 @@ def query_target_associated_diseases(string):
                 'nodes': [string, disease['name']],
                 'relationships': ['ASSOCIATED_WITH']
             }
-            paths.append(path)
-
+            paths.append(path)  # Wrap the path dictionary in a list before appending
 
     return response, formatted_diseases, disease_list, paths
 
@@ -160,12 +154,6 @@ def query_protein_protein_interactions(string):
     variables = {"name": id}
     response = send_query(query, variables)
     print(response)
-    formatted_targets = []
-    if response.get('data') and response['data'].get('targets') and response['data']['targets'].get('targets'):
-        for target in response['data']['targets']['targets']:
-            formatted_target = "{} -> ASSOCIATED_WITH -> {}".format(string, target['sym'])
-            formatted_targets.append(formatted_target)
-
     target_list = []
     formatted_targets = []
     if response.get('data') and response['data'].get('targets') and response['data']['targets'].get('targets'):
@@ -182,7 +170,7 @@ def query_protein_protein_interactions(string):
                 'nodes': [string, target['sym']],
                 'relationships': ['ASSOCIATED_WITH']
             }
-            paths.append(path)
+            paths.append(path)  # Wrap the path dictionary in a list before appending
 
     return response, formatted_targets, target_list, paths
 
@@ -211,7 +199,7 @@ def query_ligand_targets(string):
     response = send_query(query, variables)
     print(response)
     
-    target_list = []
+    activity_data = {}
     formatted_targets = []
     paths = []
     
@@ -220,13 +208,26 @@ def query_ligand_targets(string):
             target_sym = activity['target']['sym']
             activity_type = activity['type']
             activity_value = activity['value']
-            target_list.append(target_sym)
-            
+
+            # Store activity data for later averaging
+            if target_sym not in activity_data:
+                activity_data[target_sym] = {}
+            if activity_type not in activity_data[target_sym]:
+                activity_data[target_sym][activity_type] = []
+            activity_data[target_sym][activity_type].append(activity_value)
+    
+    # Average the values for each target and activity type
+    for target_sym in activity_data:
+        for activity_type in activity_data[target_sym]:
+            avg_value = np.mean(activity_data[target_sym][activity_type])
+            activity_data[target_sym][activity_type] = avg_value
+
+            # Format the target and path
             if activity_type == '-':
                 activity_type = "interacts with"
                 formatted_target = "{} -> {} -> {}".format(string, activity_type, target_sym)
             else:
-                activity_type = "{}={}".format(activity_type, activity_value)
+                activity_type = "{}={}".format(activity_type, avg_value)
                 formatted_target = "{} -> {} (interacts with) -> {}".format(string, activity_type, target_sym)
             formatted_targets.append(formatted_target)
             
@@ -235,7 +236,10 @@ def query_ligand_targets(string):
                 'nodes': [string, target_sym],
                 'relationships': [activity_type]
             }
-            paths.append(path)
+            paths.append(path)  # Wrap the path dictionary in a list before appending
+
+    # Convert the averaged data into a list of unique targets
+    target_list = list(activity_data.keys())
     
     return response, formatted_targets, target_list, paths
 
@@ -251,15 +255,14 @@ def ligand_query(string, question, progress_callback=None):
         first_ligand_target_target_paths. append(ligand_target_target_paths)
         response, ligand_disease_formatted, ligand_disease_disease, ligand_target_disease_paths = query_target_associated_diseases(target)
         first_ligand_target_disease_paths.append(ligand_target_disease_paths)
-    print(first_ligand_target_target_paths)
-    selected_ligand_target_target_paths, selected_ligand_target_target_paths_nodes, unique_ligand_target_target_paths_rels_list, ligand_target_target_paths_selected_paths_stage2 = select_paths(first_ligand_target_target_paths, 
+    selected_ligand_target_target_paths, selected_ligand_target_target_paths_nodes, unique_ligand_target_target_paths_rels_list, ligand_target_target_paths_selected_paths_stage2 = select_paths_pharos(first_ligand_target_target_paths, 
                                                                                                                                                                                                  question, 
-                                                                                                                                                                                                 len(first_ligand_target_target_paths)//15,
+                                                                                                                                                                                                 15,
                                                                                                                                                                                                  5,
                                                                                                                                                                                                  progress_callback)
-    selected_ligand_target_disease_paths, selected_ligand_target_disease_paths_nodes, unique_ligand_target_disease_paths_rels_list, ligand_target_disease_paths_selected_paths_stage2 = select_paths(first_ligand_target_disease_paths,
+    selected_ligand_target_disease_paths, selected_ligand_target_disease_paths_nodes, unique_ligand_target_disease_paths_rels_list, ligand_target_disease_paths_selected_paths_stage2 = select_paths_pharos(first_ligand_target_disease_paths,
                                                                                                                                                                                                      question,
-                                                                                                                                                                                                     len(first_ligand_target_disease_paths)//15,
+                                                                                                                                                                                                     15,
                                                                                                                                                                                                      5,
                                                                                                                                                                                                      progress_callback)
     
@@ -279,14 +282,14 @@ def disease_query(string, question, progress_callback=None):
         response, disease_target_ppi_formatted, disease_target_ppi_target, disease_target_ppi_paths = query_target_associated_diseases(target)
         first_disease_target_ppi_paths.append(disease_target_ppi_paths)
 
-    selected_disease_target_target_paths, selected_disease_target_target_paths_nodes, unique_disease_target_target_paths_rels_list, disease_target_target_paths_selected_paths_stage2 = select_paths(first_disease_target_target_paths, 
+    selected_disease_target_target_paths, selected_disease_target_target_paths_nodes, unique_disease_target_target_paths_rels_list, disease_target_target_paths_selected_paths_stage2 = select_paths_pharos(first_disease_target_target_paths, 
                                                                                                                                                                                                  question, 
-                                                                                                                                                                                                 len(first_disease_target_target_paths)//15,
+                                                                                                                                                                                                 15,
                                                                                                                                                                                                  5,
                                                                                                                                                                                                  progress_callback)
-    selected_disease_target_ppi_paths, selected_disease_target_ppi_paths_nodes, unique_disease_target_ppi_paths_rels_list, disease_target_ppi_paths_selected_paths_stage2 = select_paths(first_disease_target_ppi_paths,
+    selected_disease_target_ppi_paths, selected_disease_target_ppi_paths_nodes, unique_disease_target_ppi_paths_rels_list, disease_target_ppi_paths_selected_paths_stage2 = select_paths_pharos(first_disease_target_ppi_paths,
                                                                                                                                                                                                      question,
-                                                                                                                                                                                                     len(first_disease_target_ppi_paths)//15,
+                                                                                                                                                                                                     15,
                                                                                                                                                                                                      5,
                                                                                                                                                                                                      progress_callback)
     
@@ -307,9 +310,9 @@ def target_query(string, question, progress_callback=None):
         response, target_ppi_formatted, target_ppi_target, target_disease_ppi_paths = query_protein_protein_interactions(disease)
         first_target_disease_ppi_paths.append(target_disease_ppi_paths)
 
-    selected_target_disease_target_paths, selected_target_disease_target_paths_nodes, unique_target_disease_target_paths_rels_list, target_disease_target_paths_selected_paths_stage2 = select_paths(first_target_disease_target_paths, 
+    selected_target_disease_target_paths, selected_target_disease_target_paths_nodes, unique_target_disease_target_paths_rels_list, target_disease_target_paths_selected_paths_stage2 = select_paths_pharos(first_target_disease_target_paths, 
                                                                                                                                                                                                  question, 
-                                                                                                                                                                                                 len(first_target_disease_target_paths)//15,
+                                                                                                                                                                                                 15,
                                                                                                                                                                                                  5,
                                                                                                                                                                                                  progress_callback)
     final_formatted_list = unique_target_disease_target_paths_rels_list + formatted_target_diseases
