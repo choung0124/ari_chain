@@ -23,8 +23,6 @@ from CustomLibrary.Pharos_Queries import (
     disease_query
 )
 
-
-
 def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, additional_list:Optional[List[str]]=None):
     prompt = PromptTemplate(template=Graph_Answer_Gen_Template, input_variables=["input", "question"])
     #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
@@ -33,11 +31,10 @@ def generate_answer(llm, source_list, target_list, inter_direct_list, inter_dire
     target_rels = ','.join(target_list)
     multi_hop_rels = inter_direct_list + inter_direct_inter
     multi_hop_sentences = ','.join(multi_hop_rels)
-    additional_rels = ','.join(additional_rels)
     sep_1 = f"Direct relations from {source}:"
     sep2 = f"Direct relations from {target}:"
     sep3 = f"Indirect relations between the targets of {source} and {target}:"
-    if additional_rels:
+    if additional_list:
         additional_sentences = ','.join(additional_list)
         sep4 = f"Additional relations related to the question"
         sentences = '\n'.join([sep_1, source_rels, sep2, target_rels, sep3, multi_hop_sentences, sep4, additional_sentences])
@@ -48,32 +45,35 @@ def generate_answer(llm, source_list, target_list, inter_direct_list, inter_dire
     return answer
 
 class PharosGraphQA:
-    def __init__(self, llm, entity_types, additional_entity_types=None):
+    def __init__(self, uri, username, password, llm, entity_types, additional_entity_types=None):
+        self.graph = Graph(uri, auth=(username, password))
         self.llm = llm
         self.entity_types = entity_types
         self.additional_entity_types = additional_entity_types  # Store the additional entity types dictionary
 
     def _call(self, names_list, question, generate_an_answer, progress_callback=None):
         
-        source_entity_type = self.entity_types[f"{self.names[0]}"]
-        target_entity_type = self.entity_types[f"{self.names[1]}"]
+        entities_list = list(self.entity_types.items())
+
+        # The first entity is the source entity
+        source_entity_name, source_entity_type = entities_list[0]
+
+        # The second entity is the target entity
+        target_entity_name, target_entity_type = entities_list[1]
+
         if source_entity_type == "Disease":
-            response, source_nodes, formatted_source_rels = disease_query(names_list[0])
+            formatted_source_rels, source_nodes = disease_query(source_entity_name, question)
         if source_entity_type == "Drug":
-            response, source_nodes, formatted_source_rels= ligand_query(names_list[0])
+            formatted_source_rels, source_nodes= ligand_query(source_entity_name, question)
         if source_entity_type == "Gene":
-            response, target_list, formatted_targets = target_query(names_list[0])
-            source_nodes = target_list
-            formatted_source_rels = formatted_targets
+            formatted_source_rels, source_nodes = target_query(source_entity_name, question)
 
         if target_entity_type == "Disease":
-            response, target_nodes, formatted_target_rels = disease_query(names_list[0])
+            formatted_target_rels, target_nodes = disease_query(target_entity_name, question)
         if target_entity_type == "Drug":
-            response, target_nodes, formatted_target_rels= ligand_query(names_list[0])
+            formatted_target_rels, target_nodes= ligand_query(target_entity_name, question)
         if target_entity_type == "Gene":
-            response, target_list, formatted_targets = target_query(names_list[0])
-            target_nodes = target_list
-            formatted_target_rels = formatted_targets
+            formatted_target_rels, target_nodes = target_query(target_entity_name, question)
 
         query_nodes = source_nodes + target_nodes
         query_nodes = set(query_nodes)
@@ -89,14 +89,13 @@ class PharosGraphQA:
             for entityname, entity_info in self.additional_entity_types.items():
                 entity_type = entity_info['entity_type'][1]  # Extract entity type from the nested dictionary
                 if entity_type == "Disease":
-                    response, additional_entity_nodes, formatted_additional_entity_rels = disease_query(entityname)
+                    formatted_additional_entity_rels, additional_entity_nodes = disease_query(entityname, question)
                 elif entity_type == "Drug":
-                    response, additional_entity_nodes, formatted_additional_entity_rels = ligand_query(entityname)
+                    formatted_additional_entity_rels, additional_entity_nodes = ligand_query(entityname, question)
                 elif entity_type == "Gene":
-                    response, target_list, formatted_targets = target_query(entityname)
-                    additional_entity_nodes = target_list
-                    formatted_additional_entity_rels = formatted_targets 
+                    formatted_additional_entity_rels, additional_entity_nodes = target_query(entityname, question)
                 query_nodes.update(additional_entity_nodes)
+                additional_entity_direct_graph_rels.extend(formatted_additional_entity_rels)
                 graph_rels.update(formatted_additional_entity_rels)
 
         
@@ -115,7 +114,7 @@ class PharosGraphQA:
         for node in query_nodes:
             target_direct_relations, inter_direct_graph_rels, source_and_target_nodes1, direct_nodes = query_inter_relationships_direct1(self.graph, node)
             if target_direct_relations:
-                inter_direct_relationships, selected_nodes, inter_direct_unique_rels, selected_target_direct_paths = select_paths(target_direct_relations, question, len(target_direct_relations)//15, 3, progress_callback)
+                inter_direct_relationships, selected_nodes, inter_direct_unique_rels, selected_target_direct_paths = select_paths(target_direct_relations, question, 15, 3, progress_callback)
                 og_target_direct_relations.update(inter_direct_relationships)
                 selected_inter_direct_nodes.update(selected_nodes)
                 inter_direct_unique_graph_rels.update(inter_direct_unique_rels)
@@ -138,7 +137,7 @@ class PharosGraphQA:
 
         if final_inter_direct_relationships:
             target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, final_selected_inter_direct_nodes, query_nodes)
-            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 5, progress_callback)
+            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, 15, 30, progress_callback)
         else:
             final_inter_direct_relationships = []
             selected_inter_direct_nodes = []
@@ -171,7 +170,7 @@ class PharosGraphQA:
 
 ########################################################################################################
         
-        if generate_an_answer == True:
+        if generate_an_answer == True and self.additional_entity_types is not None:
             #final_context = generate_answer_airo(llm=self.llm,
             final_context = generate_answer(llm=self.llm, 
                                             question=question,
@@ -183,9 +182,19 @@ class PharosGraphQA:
                                             target=names_list[1], 
                                             additional_list=additional_entity_direct_graph_rels
                                             )
+        else:
+            final_context = generate_answer(llm=self.llm, 
+                                question=question,
+                                source_list=formatted_source_rels, 
+                                target_list=formatted_target_rels,
+                                inter_direct_list=final_inter_direct_relationships,
+                                inter_direct_inter = final_inter_direct_inter_relationships,
+                                source=names_list[0],
+                                target=names_list[1]
+                                )
+            
                                             
-
-            answer = final_context
+        answer = final_context
 
         response = {"result": answer, 
                     "multi_hop_relationships": final_inter_direct_inter_relationships,
