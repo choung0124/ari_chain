@@ -1,6 +1,7 @@
 import requests
 import json
 from typing import Optional
+from CustomLibrary.Graph_Utils import select_paths
 
 class GraphQLClient:
     def __init__(self, endpoint):
@@ -56,70 +57,119 @@ def query_open_targets_id(string, get_target: Optional[bool], get_disease:Option
                 break
     return hit['id']
 
-def query_open_targets_disease_associated_targets(string):
-    query = """
-    query associatedTargets($efoId: String!) {
-    disease(efoId: $efoId) {
-        id
-        name
-        associatedTargets {
-        count
-        rows {
-            target {
-            id
-            approvedSymbol
-            }
-            score
-        }
-        }
-    }
-    }
-    """
-    id = query_open_targets_id(string, False, True, False)
-    variables = {"efoId": id}
-    response = query_open_targets(query, variables)
-    return response
 
-def query_open_targets_target_associated_diseases(string):
+
+def query_target_info(string, question, progress_callback=None):
     query = """query associatedDiseases($ensgId: String!) {
     target(ensemblId: $ensgId) {
         id
         approvedSymbol
+        pathways {
+        pathway
+        }
+        interactions {
+        rows {
+            targetB{
+            approvedSymbol
+            }
+        }
+        }
         associatedDiseases {
-        count
         rows {
             disease {
             id
             name
             }
-            datasourceScores {
-            id
-            score
             }
         }
         }
-    }
-    }
+      }
     """
     id = query_open_targets_id(string, True, False, False)
     variables = {"ensgId": id}
     response = query_open_targets(query, variables)
-    return response
 
-def query_similar_diseases(string):
-    query = """
-    query similarEntities($efoId: String!) {
-      disease(efoId: $efoId) {
-        similarEntities {
-          score
-          id
-          object {
-            ... on Disease {
-              id
-              name
+    if response.get('data') and response['data'].get('target') and response['data']['target'].get('associatedDiseases'):
+        associated_diseases = response['data']['target']['associatedDiseases']['rows']
+        target_disease_paths = []
+        target_disease_pathway_paths = []
+        target_interactions = []
+
+        for associated_disease in associated_diseases:
+            disease_name = associated_disease['disease']['name']
+            target_disease_path = {
+                'nodes': [string, disease_name],
+                'relationships': ['ASSOCIATED_WITH']
             }
+            target_disease_paths.append(target_disease_path)
+
+        target = response['data']['target']
+        if target['pathways']:
+            pathways = target['pathways']
+            for pathway in pathways:
+                pathway_name = pathway['pathway']
+                target_disease_pathway_path = {
+                    'nodes': [string, pathway_name],
+                    'relationships': ['ASSOCIATED_WITH']
+                }
+                target_disease_pathway_paths.append(target_disease_pathway_path)
+
+        if target['interactions']:
+            interactions = target['interactions']['rows']
+            for interaction in interactions:
+                interaction_name = interaction['targetB']['approvedSymbol']
+                target_disease_path = {
+                    'nodes': [string, interaction_name],
+                    'relationships': ['INTERACTS_WITH']
+                }
+                target_interactions.append(target_disease_path)
+
+
+    selected_target_disease_paths, selected_target_disease_nodes, selected_target_disease_rels, selected_stage2 = select_paths(target_disease_paths, 
+                                                                                                                               question,
+                                                                                                                              len(target_disease_paths),
+                                                                                                                              5,
+                                                                                                                              progress_callback)
+    selected_target_disease_pathway_paths, selected_target_disease_pathway_nodes, selected_target_disease_pathway_rels, selected_stage2 = select_paths(target_disease_pathway_paths,
+                                                                                                                                                      question,
+                                                                                                                                                      len(target_disease_pathway_paths),
+                                                                                                                                                      5,
+                                                                                                                                                      progress_callback)
+    selected_target_interactions, selected_target_interaction_nodes, selected_target_interaction_rels, selected_stage2 = select_paths(target_interactions,
+                                                                                                                                    question,
+                                                                                                                                    len(target_interactions),
+                                                                                                                                    5,
+                                                                                                                                    progress_callback)
+    
+    final_paths = selected_target_disease_paths + selected_target_disease_pathway_paths + selected_target_interactions
+    final_nodes = selected_target_disease_nodes + selected_target_disease_pathway_nodes + selected_target_interaction_nodes
+    final_rels = selected_target_disease_rels + selected_target_disease_pathway_rels + selected_target_interaction_rels
+                                                                                                                            
+    return final_paths, final_nodes, final_rels
+
+def query_disease_info(string, question, progress_callback=None):
+    query = """
+    query diseaseAnnotation($efoId: String!) {
+      disease(efoId: $efoId) {
+        id
+        name
+        associatedTargets {
+          rows {
+            target {
+              approvedSymbol
+              pathways {
+                pathway
+              }
+              interactions {
+              rows {
+                  targetB{
+                  approvedSymbol
+                  }
+              }
+              }
+            }
+            score
           }
-          __typename
         }
       }
     }
@@ -127,7 +177,59 @@ def query_similar_diseases(string):
     id = query_open_targets_id(string, False, True, False)
     variables = {"efoId": id}
     response = query_open_targets(query, variables)
-    return response
+
+    if response.get('data') and response['data'].get('disease') and response['data']['disease'].get('associatedTargets'):
+        associated_targets = response['data']['disease']['associatedTargets']['rows']
+        disease_target_paths = []
+        disease_target_pathway_paths = []
+        disease_target_target_paths = []
+
+        for associated_target in associated_targets:
+            target_name = associated_target['target']['approvedSymbol']
+            disease_target_path = {
+                'nodes': [string, target_name],
+                'relationships': ['ASSOCIATED_WITH']
+            }
+            disease_target_paths.append(disease_target_path)
+
+            if associated_target['target']['pathways']:
+                pathways = associated_target['target']['pathways']
+                for pathway in pathways:
+                    pathway_name = pathway['pathway']
+                    disease_target_pathway_path = {
+                        'nodes': [string, target_name, pathway_name],
+                        'relationships': ['ASSOCIATED_WITH', 'ASSOCIATED_WITH']
+                    }
+                    disease_target_pathway_paths.append(disease_target_pathway_path)
+
+            if associated_target['target']['interactions']:
+                interactions = associated_target['target']['interactions']['rows']
+                for interaction in interactions:
+                    interaction_name = interaction['targetB']['approvedSymbol']
+                    disease_target_target_path = {
+                        'nodes': [string, target_name, interaction_name],
+                        'relationships': ['ASSOCIATED_WITH', 'INTERACTS_WITH']
+                    }
+                    disease_target_target_paths.append(disease_target_target_path)
+
+    selected_disease_paths, selected_disease_nodes, unique_disease_rels, selected_stage2 = select_paths(disease_target_pathway_paths,
+                                                                                                        question,
+                                                                                                        len(disease_target_pathway_paths)//15,
+                                                                                                        15,
+                                                                                                        progress_callback)
+    
+    selected_disease_target_target_paths, selected_disease_target_target_nodes, unique_disease_target_target_rels, selected_stage2 = select_paths(disease_target_target_paths,
+                                                                                                                                      question,
+                                                                                                                                      len(disease_target_target_paths)//15,
+                                                                                                                                      15,
+                                                                                                                                      progress_callback)
+    
+    final_disease_target_target_paths = selected_disease_paths + selected_disease_target_target_paths
+    final_disease_target_target_nodes = selected_disease_nodes + selected_disease_target_target_nodes
+    final_unique_disease_target_target_rels = unique_disease_rels + unique_disease_target_target_rels
+    
+
+    return final_disease_target_target_paths, final_disease_target_target_nodes, final_unique_disease_target_target_rels
 
 
 
@@ -152,8 +254,185 @@ def query_similar_drugs(string):
     id = query_open_targets_id(string, False, False, True)
     variables = {"chemblId": id}
     response = query_open_targets(query, variables)
-    return response
+
+    chembl_id_list = []
+    formatted_paths = []
+    paths = []
+
+    if response.get('data') and response['data'].get('drug') and response['data']['drug'].get('similarEntities'):
+        for similar_entity in response['data']['drug']['similarEntities']:
+            chembl_id = similar_entity['id']
+            score = round(similar_entity['score'], 3)
+            name = similar_entity['object'].get('name')
+            if name:
+                name = name.capitalize()  # Change this line
+                chembl_id_list.append(name)
+                similarity_string = "has a similarity score of"
+                similarity_string = "{}={} to".format(similarity_string, score)
+
+                formatted_path = "{} -> has a similarity score of {} to -> {}".format(string, score, name)
+                formatted_paths.append(formatted_path)
+                path = {
+                    'nodes': [string, name],
+                    'relationships': [similarity_string]
+                }
+                paths.append(path)
+    return paths, formatted_paths, chembl_id_list
 
 
-print(query_similar_drugs("mirodenafil"))
+def query_drug_annotation(string):
+    query = """
+    query drugAnnotation($chemblId: String!) {
+      drug(chemblId: $chemblId) {
+        name
+        id
+        mechanismsOfAction{
+          uniqueActionTypes
+          uniqueTargetTypes
+          rows{
+            mechanismOfAction
+            actionType
+            targetName
+          }
+        }
+        linkedTargets{
+          rows{
+            approvedSymbol
+            pathways{
+              pathway
+            }
+            interactions{
+              rows{
+                targetB{
+                  approvedSymbol
+                }
+              }
+            }
+          }
+        }
+        linkedDiseases{
+          rows{
+            name
+          }
+        }
+      }
+    }
+    """
+  
+    id = query_open_targets_id(string, False, False, True)
+    variables = {"chemblId": id}
+    response = query_open_targets(query, variables)
+
+    drug_target_paths = []
+    drug_target_pathway_paths = []
+    drug_disease_paths = []
+    drug_target_target_paths = []
+
+    if response.get('data') and response['data'].get('drug') and response['data']['drug']['linkedTargets'].get('rows'):
+        linked_targets = []
+        linked_target_pathways = []
+        for target in response['data']['drug']['linkedTargets']['rows']:
+            linked_target_sym = target['approvedSymbol']
+            linked_target_pathways.append(target['pathways'])
+            linked_targets.append(linked_target_sym)
+            path = {
+                'nodes': [string, linked_target_sym],
+                'relationships': ['ASSOCIATED_WITH']
+            }
+            drug_target_paths.append(path)
+            if target['pathways']:
+                for pathway in target['pathways']:
+                    pathway_name = pathway['pathway']
+                    path = {
+                        'nodes': [string, linked_target_sym, pathway_name],
+                        'relationships': ['ASSOCIATED_WITH', 'ASSOCIATED_WITH']
+                    }
+                    drug_target_pathway_paths.append(path)
+
+            if target['interactions']:
+                for interaction in target['interactions']['rows']:
+                    if interaction['targetB']:
+                      interaction_target_sym = interaction['targetB']['approvedSymbol']
+                      path = {
+                          'nodes': [string, interaction_target_sym, linked_target_sym],
+                          'relationships': ['ASSOCIATED_WITH', 'INTERACTS_WITH']
+                      }
+                      drug_target_target_paths.append(path)
+
+    if response.get('data') and response['data'].get('drug') and response['data']['drug']['linkedDiseases'].get('rows'):
+        linked_diseases = []
+        for disease in response['data']['drug']['linkedDiseases']['rows']:
+            linked_disease_name = disease['name']
+            linked_diseases.append(linked_disease_name)
+            path = {
+                'nodes': [string, linked_disease_name],
+                'relationships': ['ASSOCIATED_WITH']
+            }
+            drug_disease_paths.append(path)
+
+    return drug_target_paths, drug_target_pathway_paths, drug_disease_paths, drug_target_target_paths
+
+
+def query_drug_info(string, question, progress_callback=None):
+    final_paths = []
+    final_drug_target_nodes = []
+    final_drug_pathway_nodes = []
+    final_drug_disease_nodes = []
+    final_drug_target_target_nodes = []
+    final_drug_target_rels = []
+    final_drug_pathway_rels = []
+    final_drug_disease_rels = []
+    final_drug_target_target_rels = []
+
+    similar_drug_paths, similar_drugs_formatted, chembl_id_list = query_similar_drugs(string)
+    for id in chembl_id_list:
+        print(f"Processing chembl_id: {id}")  # Add this line
+        drug_target_paths, drug_target_pathway_paths, drug_disease_paths, drug_target_target_paths = query_drug_annotation(id)
+        if drug_target_paths:
+          selected_drug_target_paths, selected_drug_target_nodes, unique_drug_target_rels, selected_stage2 = select_paths(drug_target_paths,
+                                                                                                                                question,
+                                                                                                                                15,
+                                                                                                                                3,
+                                                                                                                                progress_callback)
+          final_paths.extend(selected_drug_target_paths)
+          final_drug_target_nodes.extend(selected_drug_target_nodes)
+          final_drug_target_rels.extend(unique_drug_target_rels)
+
+        if drug_target_pathway_paths:                                                                                                                          
+          selected_drug_pathway_paths, selected_drug_pathway_nodes, unique_drug_pathway_rels, selected_stage2 = select_paths(drug_target_pathway_paths,
+                                                                                                                                    question,
+                                                                                                                                    15,
+                                                                                                                                    3,
+                                                                                                                                    progress_callback)    
+          final_paths.extend(selected_drug_pathway_paths)
+          final_drug_pathway_nodes.extend(selected_drug_pathway_nodes)
+          final_drug_pathway_rels.extend(unique_drug_pathway_rels)
+
+        if drug_disease_paths:                                                                                                                                               
+          selected_drug_disease_paths, selected_drug_disease_nodes, unique_drug_disease_rels, selected_stage2 = select_paths(drug_disease_paths,
+                                                                                                                                    question,
+                                                                                                                                    15,
+                                                                                                                                    3,
+                                                                                                                                    progress_callback)
+          final_paths.extend(selected_drug_disease_paths)
+          final_drug_disease_nodes.extend(selected_drug_disease_nodes)
+          final_drug_disease_nodes.extend(unique_drug_disease_rels)
+
+        if drug_target_target_paths:
+          selected_drug_target_target_paths, selected_drug_target_target_nodes, unique_drug_target_target_rels, selected_stage2 = select_paths(drug_target_target_paths,
+                                                                                                                                    question,
+                                                                                                                                    15,
+                                                                                                                                    3,
+                                                                                                                                    progress_callback)
+          final_paths.extend(selected_drug_target_target_paths)
+          final_drug_target_target_nodes.extend(selected_drug_target_target_nodes)
+          final_drug_target_target_rels.extend(unique_drug_target_target_rels)
+
+    final_nodes = final_drug_target_nodes + final_drug_pathway_nodes + final_drug_disease_nodes
+    final_rels = final_drug_target_rels + final_drug_pathway_rels + final_drug_disease_rels + final_drug_target_target_rels + similar_drug_paths
+    final_nodes = list(set(final_nodes))
+    final_rels = list(set(final_rels))
+    final_paths.extend(similar_drugs_formatted)
+
+    return final_paths, final_nodes, final_rels
 
