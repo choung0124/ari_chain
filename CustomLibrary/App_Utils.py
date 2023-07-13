@@ -2,7 +2,12 @@ from CustomLibrary.Utils import get_umls_id
 import re
 import ast
 import streamlit as st
+import streamlit.components.v1 as components
 from pyvis.network import Network
+import webbrowser
+import os
+import colour
+import json
 
 def extract_entities(question, entity_extraction_chain, additional_entity_extraction_chain):
     result = entity_extraction_chain.run(question)
@@ -85,17 +90,24 @@ def get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add):
 
     return additional_entity_umls_dict
 
-def create_and_display_network(nodes, edges):
-    net = Network(height='750px', 
-                  width='100%', 
-                  bgcolor='#dcfaf3', 
-                  font_color='black',
-                  directed=True,
-                  )
+def create_and_display_network(nodes, edges, back_color, name):
+    back_color = colour.Color(back_color)
+    bg_color = back_color.get_hex()
 
-    # add nodes
+    # darken the color by reducing the luminance
+    # darken the color by reducing the luminance
+    back_color.luminance *= 0.8  # reduce luminance by 20%
+    border_color = back_color.get_hex()
+
+    # darken the color even more for the nodes
+    back_color.luminance *= 0.5  # reduce luminance by additional 50%
+    node_color = back_color.get_hex()
+
+    # Initialize Network with the hexadecimal color string
+    net = Network(height='750px', width='100%', bgcolor=bg_color, font_color='black', directed=True)
+
     for node in nodes:
-        net.add_node(node, label=node, title=node, url="http://example.com/{}".format(node))
+        net.add_node(node, label=node, title=node, color=node_color, url="http://example.com/{}".format(node))
 
     # add edges
     for edge in edges:
@@ -103,8 +115,40 @@ def create_and_display_network(nodes, edges):
     net.toggle_physics(True)
 
     # save to HTML file
-    net.save_graph('network.html')
+    net.save_graph(f'{name}network.html')
 
-    # display in streamlit
+    # Create a border around the network using custom CSS
+    st.markdown(
+        f"""
+        <style>
+        .network {{
+            border: 4px solid {border_color};
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    net.save_graph(f'{name}network.html')
+
+    # Display in Streamlit within a div with the class "network"
     with st.spinner("Rendering network..."):
-        st.components.v1.html(open('network.html', 'r').read(), height=750)
+        html_string = open(f'{name}network.html', 'r').read()
+        components.html(
+            f"""
+            <div class="network" style="display: flex; justify-content: center;">
+                {html_string}
+            </div>
+            """, 
+            width=1050, 
+            height=750
+        )
+
+    # Add a button to open the network in full size in a new tab
+    st.markdown(
+        f'<a href="file://{os.path.realpath(f"{name}network.html")}" target="_blank">Open Network in Full Size</a>', 
+        unsafe_allow_html=True
+    )
