@@ -217,26 +217,31 @@ def query_ligand_targets(string):
             activity_data[target_sym][activity_type].append(activity_value)
     
     # Average the values for each target and activity type
+    # Average the values for each target and activity type
     for target_sym in activity_data:
         for activity_type in activity_data[target_sym]:
-            avg_value = np.mean(activity_data[target_sym][activity_type])
-            activity_data[target_sym][activity_type] = avg_value
+            # Filter out None values
+            values = [v for v in activity_data[target_sym][activity_type] if v is not None]
+            if values:
+                avg_value = np.mean(values)
+                activity_data[target_sym][activity_type] = avg_value
 
             # Format the target and path
             if activity_type == '-':
-                activity_type = "interacts with"
-                formatted_target = "{} -> {} -> {}".format(string, activity_type, target_sym)
+                relationship = "interacts with"
+                formatted_target = "{} -> {} -> {}".format(string, relationship, target_sym)
             else:
-                activity_type = "{}={}".format(activity_type, avg_value)
-                formatted_target = "{} -> {} (interacts with) -> {}".format(string, activity_type, target_sym)
+                relationship = "{}={}".format(activity_type, avg_value)
+                formatted_target = "{} -> {} (interacts with) -> {}".format(string, relationship, target_sym)
             formatted_targets.append(formatted_target)
-            
+
             # Create a path for each activity
             path = {
                 'nodes': [string, target_sym],
-                'relationships': [activity_type]
+                'relationships': [relationship]
             }
             paths.append(path)  # Wrap the path dictionary in a list before appending
+  # Wrap the path dictionary in a list before appending
 
     # Convert the averaged data into a list of unique targets
     target_list = list(activity_data.keys())
