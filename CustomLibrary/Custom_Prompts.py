@@ -1,19 +1,3 @@
-Schema_simplify_template_no_vicuna = """You are an artificial intelligence assistant that generates cypher statements for the User.
-
-USER: Generate Cypher statement to query a Neo4j graph database for all paths between the nodes. Use the names of the nodes provided below to help you generate a cypher statement. Only include the generated Cypher statement in your response. Strictly follow the syntax of the cypher query language, for Neo4j version 4.
-
-Use the template below, make no changes except replacing x and y with the node names provided:
-MATCH p = shortestPath((n)-[*]-(m))
-WHERE n:Test AND m:Test
-AND toLower(n.name) CONTAINS toLower(x)
-AND toLower(m.name) CONTAINS toLower(y)
-RETURN reduce(s = "", node in nodes(p) | s + node.name + " ") AS sentence, reduce(s = "", rel in relationships(p) | s + type(rel) + " ") AS relations
-
-Use double quotations for the node names.
-Node names: {question}
-
-ASSISTANT:"""
-
 Final_Answer_Template = """### Human: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
 Your Previous Answers:
 {CKG_Answer}
@@ -22,7 +6,7 @@ Your Previous Answers:
 Question: {question}
 ### Assistant: """
 
-Entity_type_Template1 = """### Instruction:
+Entity_type_Template_Alpaca = """### Instruction:
 Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose from the list below:
 Entity Types:
 Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
@@ -53,6 +37,28 @@ Entities: [(Entity_name, Entity_type)]
 Input: {input}
 ### Assistant:"""
 
+Entity_type_Template_add_Alpaca = """### Instruction:
+Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose one for each entity from the list below:
+Entity Types:
+Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
+Your response should be a list of tuples, use double quotes instead of single quotes.
+Your response should strictly follow this format:
+Entities: [(Entity_name, Entity_type)]
+
+### Input: {input}
+
+### Response:
+"""
+
+Entity_type_Template_add_Vicuna= """USER: Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose one for each entity from the list below:
+Entity Types:
+Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
+Your response should be a list of tuples, use double quotes instead of single quotes.
+Your response should strictly follow this format:
+Entities: [(Entity_name, Entity_type)]
+Input: {input}
+ASSISTANT:"""
+
 Entity_type_Template_airo = """USER: Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose from the list below:
 Entity Types:
 Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
@@ -69,30 +75,9 @@ Entities: [extracted entity1, extracted entity2]
 Question: {input}
 ASSISTANT:"""
 
-Entity_Extraction_Template1 = """You are an artificial intelligence assistant that extracts biomedical entities from any given question.
-
-### Instruction: 
-Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
-Entities: [extracted entity1, extracted entity2]
-Question: {input}
-
-### Response:
-"""
 
 Entity_Extraction_Template = """### Human: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
 Entities: ["extracted entity1", "extracted entity2"]
-Question: {input}
-### Assistant:
-"""
-
-Additional_Entity_Extraction_Template = """### Human: Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entities:
-Response(If there are other entities):
-Additional Entities: ["entity"]
-
-Response(If there are no other entities):
-Additional Entities: []
-
-Entities: {entities}
 Question: {input}
 ### Assistant:
 """
@@ -101,23 +86,62 @@ Entity_Extraction_Template_alpaca = """You are an artificial intelligence assist
 
 ### Instruction: 
 Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a list in your response. Your response should strictly follow this format:
-Entities: [extracted entity1, extracted entity2]
+Entities: [entity1, entity2]
+Do not use speachmarks or quotation marks around the entity names.
 Question: {input}
 
 ### Response:
 """
 
-Coherent_sentences_template2 = """USER: 
-Turn these into coherent sentences
-{input}
+Additional_Entity_Extraction_Template = """### Human: Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing.:
 
-ASSISTANT:
+Your response should strictly follow this format if there are other biomedical entities in the question:
+Additional Entities: ["entity"]
+
+Your response should strictly follow this format if there are no other biomedical entities in the question:
+Additional Entities: []
+
+Entities: {entities}
+Question: {input}
+### Assistant:
 """
-Coherent_sentences_template3 = """### Instruction: 
-Turn these into coherent sentences
-{input}
+
+Additional_Entity_Extraction_Template_Alpaca = """### Instruction:
+Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing.:
+
+Your response should strictly follow this format if there are other biomedical entities in the question:
+Additional Entities: ["entity"]
+
+Your response should strictly follow this format if there are no other biomedical entities in the question:
+Additional Entities: []
+
+For Examples:
+Entities: ["Donepezil", "Mirodenafil"]
+Question: "Could there be a synergistic drug-drug interaction between Donepezil and Mirodneafil for Alzheimer's Disease?"
+Response: ["Alzheimer's Disease"]
+
+Entities ["Alzheimer's Disease", "Autophagy"]
+Question: What is the relationship between Alzheimer's Disease and Autophagy?
+Response: []
+
+### Input:
+Entities: {entities}
+Question: {input}
 
 ### Response:
+"""
+
+Additional_Entity_Extraction_Template_Vicuna = """USER: Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing.:
+
+Your response should strictly follow this format if there are other biomedical entities in the question:
+Additional Entities: ["entity"]
+
+Your response should strictly follow this format if there are no other biomedical entities in the question:
+Additional Entities: []
+
+Entities: {entities}
+Question: {input}
+ASSISTANT:
 """
 
 Coherent_sentences_template = """### Instruction: 
