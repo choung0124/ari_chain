@@ -8,14 +8,20 @@ import streamlit as st
 from pyvis.network import Network
 from CustomLibrary.Custom_Agent import CustomLLMChain, CustomLLMChainAdditionalEntities
 from CustomLibrary.Custom_Prompts import (
-    Entity_type_Template_add, 
+    Entity_type_Template_add,
+    Entity_type_Template_Alpaca, 
     Entity_Extraction_Template_alpaca, 
     Entity_type_Template_airo, 
     Entity_Extraction_Template_airo, 
     Entity_Extraction_Template,  
     Entity_type_Template, 
     Additional_Entity_Extraction_Template,
-    Final_Answer_Template
+    Final_Answer_Template,
+    Additional_Entity_Extraction_Template_Vicuna,
+    Entity_type_Template_add_Vicuna,
+    Entity_type_Template_add_Alpaca,
+    Entity_Extraction_Template_alpaca,
+    Additional_Entity_Extraction_Template_Alpaca
 )
 from CustomLibrary.App_Utils import(
     get_umls_info, 
@@ -36,10 +42,14 @@ logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
     model_url = "https://tracked-chinese-involves-penetration.trycloudflare.com/"
+    local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
-    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
-    entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=llm, output_key="output",)
-    return llm, entity_extraction_chain
+    local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)
+    #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
+    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
+    #entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=llm, output_key="output",)
+    entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=local_llm, output_key="output",)
+    return llm, local_llm, entity_extraction_chain
 
 @st.cache_data()
 def initialize_knowledge_graph():
@@ -60,15 +70,21 @@ def progress_callback(progress):
 
 ###########################################################################################################################################################################################################################################
 
-additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template, input_variables=["input", "entities"])
-llm, entity_extraction_chain = initialize_models()
+#additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template, input_variables=["input", "entities"])
+additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Alpaca, input_variables=["input", "entities"])
+#llm, entity_extraction_chain = initialize_models()
+llm, local_llm, entity_extraction_chain = initialize_models()
 uri, username, password = initialize_knowledge_graph()
 additional_entity_extraction_chain = CustomLLMChainAdditionalEntities(prompt=additional_entity_extraction_prompt, llm=llm, output_key="output",)
 
-Entity_type_prompt = PromptTemplate(template=Entity_type_Template, input_variables=["input"])
-Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add, input_variables=["input"])
-Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
-Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=llm)
+#Entity_type_prompt = PromptTemplate(template=Entity_type_Template, input_variables=["input"])
+Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Alpaca, input_variables=["input"])
+#Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add, input_variables=["input"])
+Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Alpaca, input_variables=["input"])
+#Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
+Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=local_llm)
+#Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=llm)
+Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=local_llm)
 
 question = st.chat_input("Enter your question")
 if question:
@@ -194,7 +210,7 @@ if question:
         st.header("Final Answer:")
         Final_Chain_Prompt = PromptTemplate(template=Final_Answer_Template, input_variables=["question", "CKG_Answer", "Pharos_Answer", "OpenTargets_Answer"])
         Final_Chain = LLMChain(prompt=Final_Chain_Prompt, llm=llm)
-        Final_Answer = Final_Chain(question=question, CKG_Answer=context, Pharos_Answer=Pharos_Context, OpenTargets_Answer=OpenTargets_Context)
+        Final_Answer = Final_Chain.run(question=question, CKG_Answer=context, Pharos_Answer=Pharos_Context, OpenTargets_Answer=OpenTargets_Context)
 
         final_answer_container = st.container()
         with final_answer_container:
