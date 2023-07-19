@@ -15,7 +15,7 @@ from CustomLibrary.Graph_Utils import (
     select_paths, 
     select_paths2, 
 )
-from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template
+from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template2
 
 from CustomLibrary.Pharos_Queries import (
     ligand_query,
@@ -23,24 +23,24 @@ from CustomLibrary.Pharos_Queries import (
     disease_query
 )
 
-def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, additional_list:Optional[List[str]]=None):
-    prompt = PromptTemplate(template=Graph_Answer_Gen_Template, input_variables=["input", "question"])
+def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, previous_answer, source, target, additional_list:Optional[List[str]]=None):
+    prompt = PromptTemplate(template=Graph_Answer_Gen_Template2, input_variables=["input", "question", "previous_answer"])
     #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     gen_chain = LLMChain(llm=llm, prompt=prompt)
     source_rels = ', '.join(source_list)
     target_rels = ','.join(target_list)
     multi_hop_rels = inter_direct_list + inter_direct_inter
     multi_hop_sentences = ','.join(multi_hop_rels)
-    sep_1 = f"Direct relations from {source}:"
-    sep2 = f"Direct relations from {target}:"
-    sep3 = f"Indirect relations between the targets of {source} and {target}:"
+    sep_1 = f"Direct paths from {source}:"
+    sep2 = f"Direct paths from {target}:"
+    sep3 = f"Paths between the nodes in the direct paths of {source} and {target}:"
     if additional_list:
         additional_sentences = ','.join(additional_list)
         sep4 = f"Additional relations related to the question"
         sentences = '\n'.join([sep_1, source_rels, sep2, target_rels, sep3, multi_hop_sentences, sep4, additional_sentences])
     else:
         sentences = '\n'.join([sep_1, source_rels, sep2, target_rels, sep3, multi_hop_sentences])
-    answer = gen_chain.run(input=sentences, question=question)
+    answer = gen_chain.run(input=sentences, question=question, previous_answer=previous_answer)
     print(answer)
     return answer
 
@@ -51,7 +51,7 @@ class PharosGraphQA:
         self.entity_types = entity_types
         self.additional_entity_types = additional_entity_types  # Store the additional entity types dictionary
 
-    def _call(self, names_list, question, generate_an_answer, progress_callback=None):
+    def _call(self, names_list, question, previous_answer, generate_an_answer, progress_callback=None):
         
         entities_list = list(self.entity_types.items())
 
@@ -85,18 +85,20 @@ class PharosGraphQA:
         
         if self.additional_entity_types is not None:
             additional_entity_rels = []
+            additional_entity_paths = []
             additional_entity_direct_graph_rels = []
             for entityname, entity_info in self.additional_entity_types.items():
-                entity_type = entity_info['entity_type'][1]  # Extract entity type from the nested dictionary
-                if entity_type == "Disease":
-                    formatted_additional_entity_rels, additional_entity_nodes = disease_query(entityname, question)
-                elif entity_type == "Drug":
-                    formatted_additional_entity_rels, additional_entity_nodes = ligand_query(entityname, question)
-                elif entity_type == "Gene":
-                    formatted_additional_entity_rels, additional_entity_nodes = target_query(entityname, question)
-                query_nodes.update(additional_entity_nodes)
-                additional_entity_direct_graph_rels.extend(formatted_additional_entity_rels)
-                graph_rels.update(formatted_additional_entity_rels)
+                if entity_info is not None and entity_info['entity_type'] is not None:  
+                    entity_type = entity_info['entity_type'][1]  # Extract entity type from the nested dictionary
+                    if entity_type == "Disease":
+                        formatted_additional_entity_rels, additional_entity_nodes = disease_query(entityname, question)
+                    elif entity_type == "Drug":
+                        formatted_additional_entity_rels, additional_entity_nodes = ligand_query(entityname, question)
+                    elif entity_type == "Gene":
+                        formatted_additional_entity_rels, additional_entity_nodes = target_query(entityname, question)
+                    query_nodes.update(additional_entity_nodes)
+                    additional_entity_direct_graph_rels.extend(formatted_additional_entity_rels)
+                    graph_rels.update(formatted_additional_entity_rels)
 
         
         names_set = set(names_list)
@@ -174,6 +176,7 @@ class PharosGraphQA:
             #final_context = generate_answer_airo(llm=self.llm,
             final_context = generate_answer(llm=self.llm, 
                                             question=question,
+                                            previous_answer=previous_answer,
                                             source_list=formatted_source_rels, 
                                             target_list=formatted_target_rels,
                                             inter_direct_list=final_inter_direct_relationships,
@@ -185,6 +188,7 @@ class PharosGraphQA:
         else:
             final_context = generate_answer(llm=self.llm, 
                                 question=question,
+                                previous_answer=previous_answer,
                                 source_list=formatted_source_rels, 
                                 target_list=formatted_target_rels,
                                 inter_direct_list=final_inter_direct_relationships,

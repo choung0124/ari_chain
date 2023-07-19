@@ -15,43 +15,44 @@ from CustomLibrary.Graph_Utils import (
     select_paths, 
     select_paths2, 
 )
-from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template
+from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template2
 
 from CustomLibrary.OpenTargets import (
     query_disease_info,
     query_drug_info,
-    query_target_info
+    query_target_info,
+    query_predicted_drug_info
 )
 
-def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, additional_list:Optional[List[str]]=None):
-    prompt = PromptTemplate(template=Graph_Answer_Gen_Template, input_variables=["input", "question"])
+def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, previous_answer, source, target, additional_list:Optional[List[str]]=None):
+    prompt = PromptTemplate(template=Graph_Answer_Gen_Template2, input_variables=["input", "question", "previous_answer"])
     #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     gen_chain = LLMChain(llm=llm, prompt=prompt)
     source_rels = ', '.join(source_list)
     target_rels = ','.join(target_list)
     multi_hop_rels = inter_direct_list + inter_direct_inter
     multi_hop_sentences = ','.join(multi_hop_rels)
-    sep_1 = f"Direct relations from {source}:"
-    sep2 = f"Direct relations from {target}:"
-    sep3 = f"Indirect relations between the targets of {source} and {target}:"
+    sep_1 = f"Direct paths from {source}:"
+    sep2 = f"Direct paths from {target}:"
+    sep3 = f"Paths between the nodes in the direct paths of {source} and {target}:"
     if additional_list:
         additional_sentences = ','.join(additional_list)
         sep4 = f"Additional relations related to the question"
         sentences = '\n'.join([sep_1, source_rels, sep2, target_rels, sep3, multi_hop_sentences, sep4, additional_sentences])
     else:
         sentences = '\n'.join([sep_1, source_rels, sep2, target_rels, sep3, multi_hop_sentences])
-    answer = gen_chain.run(input=sentences, question=question)
+    answer = gen_chain.run(input=sentences, question=question, previous_answer=previous_answer)
     print(answer)
     return answer
 
 class OpenTargetsGraphQA:
     def __init__(self, uri, username, password, llm, entity_types, additional_entity_types=None):
         self.graph = Graph(uri, auth=(username, password))
+        self.llm = llm
         self.entity_types = entity_types
-        self.additional_entity_types = additional_entity_types 
-        self.llm = llm # Store the additional entity types dictionary
+        self.additional_entity_types = additional_entity_types  # Store the additional entity types dictionary
 
-    def _call(self, names_list, question, generate_an_answer, progress_callback=None):
+    def _call(self, names_list, question, previous_answer, generate_an_answer, progress_callback=None):
         
         entities_list = list(self.entity_types.items())
 
@@ -64,7 +65,7 @@ class OpenTargetsGraphQA:
         if source_entity_type == "Disease":
             source_paths, source_nodes, formatted_source_rels = query_disease_info(source_entity_name, question)
         if source_entity_type == "Drug":
-            source_paths, source_nodes, formatted_source_rels= query_drug_info(source_entity_name, question)
+            source_paths, source_nodes, formatted_source_rels= query_predicted_drug_info(source_entity_name, question)
         if source_entity_type == "Gene":
             source_paths, target_list, formatted_targets = query_target_info(source_entity_name, question)
             source_nodes = target_list
@@ -73,7 +74,7 @@ class OpenTargetsGraphQA:
         if target_entity_type == "Disease":
             target_paths, target_nodes, formatted_target_rels = query_disease_info(target_entity_name, question)
         if target_entity_type == "Drug":
-            target_paths, target_nodes, formatted_target_rels= query_drug_info(target_entity_name, question)
+            target_paths, target_nodes, formatted_target_rels= query_predicted_drug_info(target_entity_name, question)
         if target_entity_type == "Gene":
             target_paths, target_list, formatted_targets = query_target_info(target_entity_name, question)
             target_nodes = target_list
@@ -89,19 +90,21 @@ class OpenTargetsGraphQA:
         
         if self.additional_entity_types is not None:
             additional_entity_rels = []
+            additional_entity_paths = []
             additional_entity_direct_graph_rels = []
             for entityname, entity_info in self.additional_entity_types.items():
-                entity_type = entity_info['entity_type'][1]  # Extract entity type from the nested dictionary
-                if entity_type == "Disease":
-                    additional_paths, additional_entity_nodes, formatted_additional_entity_rels = query_disease_info(entityname, question)
-                elif entity_type == "Drug":
-                    additional_paths, additional_entity_nodes, formatted_additional_entity_rels = query_drug_info(entityname, question)
-                elif entity_type == "Gene":
-                    additional_paths, target_list, formatted_targets = query_target_info(entityname, question)
-                    formatted_additional_entity_rels = formatted_targets 
-                additional_entity_direct_graph_rels.extend(additional_paths)
-                query_nodes.update(additional_entity_nodes)
-                graph_rels.update(formatted_additional_entity_rels)
+                if entity_info is not None and entity_info['entity_type'] is not None:  
+                    entity_type = entity_info['entity_type'][1]  # Extract entity type from the nested dictionary
+                    if entity_type == "Disease":
+                        additional_paths, additional_entity_nodes, formatted_additional_entity_rels = query_disease_info(entityname, question)
+                    elif entity_type == "Drug":
+                        additional_paths, additional_entity_nodes, formatted_additional_entity_rels = query_predicted_drug_info(entityname, question)
+                    elif entity_type == "Gene":
+                        additional_paths, target_list, formatted_targets = query_target_info(entityname, question)
+                        formatted_additional_entity_rels = formatted_targets 
+                    additional_entity_direct_graph_rels.extend(additional_paths)
+                    query_nodes.update(additional_entity_nodes)
+                    graph_rels.update(formatted_additional_entity_rels)
 
         names_set = set(names_list)
         #query_nodes.update(final_path_nodes)
@@ -178,6 +181,7 @@ class OpenTargetsGraphQA:
             #final_context = generate_answer_airo(llm=self.llm,
             final_context = generate_answer(llm=self.llm, 
                                             question=question,
+                                            previous_answer=previous_answer,
                                             source_list=source_paths, 
                                             target_list=target_paths,
                                             inter_direct_list=final_inter_direct_relationships,
@@ -190,6 +194,7 @@ class OpenTargetsGraphQA:
         else:
             final_context = generate_answer(llm=self.llm, 
                                             question=question,
+                                            previous_answer=previous_answer,
                                             source_list=source_paths, 
                                             target_list=target_paths,
                                             inter_direct_list=final_inter_direct_relationships,

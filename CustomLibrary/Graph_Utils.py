@@ -61,7 +61,7 @@ def generate_answer_airo(llm, relationships_list, source_list, target_list, inte
 #########################################################################################################################################################################################
 
 def cluster_and_select_med(paths_list, n_cluster, progress_callback=None):
-    model = SentenceTransformer('pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb')
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L12-v2')
     sentences_list = [construct_path_string(path['nodes'], path['relationships']) for path in paths_list]
     batch_size = 2048
     total_iterations = len(sentences_list) // batch_size + 1
@@ -157,7 +157,7 @@ def select_paths2(paths, question, n_cluster, n_embed, progress_callback):
     return paths_list, selected_nodes, unique_rels_list
 
 def cluster_and_select_pharos(paths_list, n_cluster, progress_callback=None):
-    model = SentenceTransformer('pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb')
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L12-v2')
     sentences_list = []
     for path_list in paths_list:
         for path in path_list:

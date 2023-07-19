@@ -3,6 +3,7 @@ Your Previous Answers:
 {CKG_Answer}
 {Pharos_Answer}
 {OpenTargets_Answer}
+{Predicted_Answer}
 Question: {question}
 ### Assistant: """
 
@@ -161,6 +162,20 @@ Context:
 
 Graph_Answer_Gen_Template = """### Human: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
 Question: {question}
+Context: 
+{input}
+### Assistant: """
+
+Graph_Answer_Gen_Template2 = """### Human: Below is a question, your previous answer to the question, and some additional context. Using the additional context, improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Question: {question}
+Previous Answer: {previous_answer}
+Context: 
+{input}
+### Assistant: """
+
+Graph_Answer_Gen_Template3 = """### Human: Below is a question, your previous answer to the question, and some additional context. The additional context contains paths and relations related to similar entities to the entities in the question. Think of the paths and relations of the similar entities as predicted paths and relations of the enties in the question. This is based on the premise that similar drugs have similar mechanisms and similar diseases have similar pathologies, etc. Using the additional context, improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Question: {question}
+Previous Answer: {previous_answer}
 Context: 
 {input}
 ### Assistant: """
@@ -324,4 +339,3 @@ Action Input: {{gen 'actInput' stop='\\n'}}
 Observation: {{do_tool tool_name actInput}}
 Thought: {{gen 'thought' stop='\\n'}}
 {{select 'answer' options=valid_answers}}: {{gen 'fn' stop='\\n'}}"""
-
