@@ -36,6 +36,7 @@ from CustomLibrary.Graph_Visualize import parse_relationships_pyvis
 from CustomLibrary.Graph_Class import KnowledgeGraphRetrieval
 from CustomLibrary.Pharos_Graph_QA import PharosGraphQA
 from CustomLibrary.OpenTargets_Graph_QA import OpenTargetsGraphQA
+from CustomLibrary.Predicted_QA import PredictedGrqphQA
 #Could there be a synergistic drug-drug interaction between lamotrigine and rivastigmine for lewy body dementia?
 # Set logging verbosity
 logging.set_verbosity(logging.CRITICAL)
@@ -45,11 +46,11 @@ def initialize_models():
     local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)
-    #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
-    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
-    #entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=llm, output_key="output",)
-    entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=local_llm, output_key="output",)
-    return llm, local_llm, entity_extraction_chain
+    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
+    #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
+    entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=llm, output_key="output",)
+    #entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=local_llm, output_key="output",)
+    return llm, entity_extraction_chain
 
 @st.cache_data()
 def initialize_knowledge_graph():
@@ -70,21 +71,21 @@ def progress_callback(progress):
 
 ###########################################################################################################################################################################################################################################
 
-#additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template, input_variables=["input", "entities"])
-additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Alpaca, input_variables=["input", "entities"])
-#llm, entity_extraction_chain = initialize_models()
-llm, local_llm, entity_extraction_chain = initialize_models()
+additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template, input_variables=["input", "entities"])
+#additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Alpaca, input_variables=["input", "entities"])
+llm, entity_extraction_chain = initialize_models()
+#llm, local_llm, entity_extraction_chain = initialize_models()
 uri, username, password = initialize_knowledge_graph()
 additional_entity_extraction_chain = CustomLLMChainAdditionalEntities(prompt=additional_entity_extraction_prompt, llm=llm, output_key="output",)
 
-#Entity_type_prompt = PromptTemplate(template=Entity_type_Template, input_variables=["input"])
-Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Alpaca, input_variables=["input"])
-#Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add, input_variables=["input"])
-Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Alpaca, input_variables=["input"])
-#Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
-Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=local_llm)
-#Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=llm)
-Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=local_llm)
+Entity_type_prompt = PromptTemplate(template=Entity_type_Template, input_variables=["input"])
+#Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Alpaca, input_variables=["input"])
+Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add, input_variables=["input"])
+#Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Alpaca, input_variables=["input"])
+Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
+#Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=local_llm)
+Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=llm)
+#Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=local_llm)
 
 question = st.chat_input("Enter your question")
 if question:
@@ -149,7 +150,8 @@ if question:
         graph_query = Pharos._call(names_list, 
                                     question, 
                                     generate_an_answer=True, 
-                                    progress_callback=progress_callback)
+                                    progress_callback=progress_callback,
+                                    previous_answer=context)
         
 
         Pharos_Context = graph_query["result"]
@@ -186,7 +188,8 @@ if question:
         graph_query = Pharos._call(names_list,
                                                 question,
                                                 generate_an_answer=True,
-                                                progress_callback=progress_callback)
+                                                progress_callback=progress_callback,
+                                                previous_answer=Pharos_Context)
 
         OpenTargets_Context = graph_query["result"]
         all_rels = graph_query['all_rels']
@@ -205,12 +208,61 @@ if question:
             with st.chat_message("assistant"):
                 st.write(OpenTargets_Context)
 
-        #######################################################################################################################################################################################################################
+#######################################################################################################################################################################################################################
+
+        st.header("Predicted Graph QA based on sementic similarity")
+
+        if additional_entities:
+            additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
+            print(additional_entity_umls_dict)
+
+            keys_to_remove = []
+            for key, value in additional_entity_umls_dict.items():
+                # Check if any value is empty
+                if any(v is None or v == '' for v in value.values()):
+                    # Add the key to the list of keys to remove
+                    keys_to_remove.append(key)
+
+            # Remove the keys outside the loop
+            for key in keys_to_remove:
+                del additional_entity_umls_dict[key]
+
+
+            PredictedQA = PredictedGrqphQA(uri, username, password, llm, entity_types, question, additional_entity_types=additional_entity_umls_dict)
+
+        else:
+            PredictedQA = PredictedGrqphQA(uri, username, password, llm, entity_types, question)
+
+        # Query the knowledge graph
+        graph_query = PredictedQA._call(names_list,
+                                                question,
+                                                generate_an_answer=True,
+                                                progress_callback=progress_callback,
+                                                previous_answer=OpenTargets_Context)
+        
+        Predicted_Context = graph_query["result"]
+        all_rels = graph_query['all_rels']
+        Predicted_nodes = set()
+
+        Predicted_nodes, Predicted_edges = parse_relationships_pyvis(all_rels)
+
+        Predicted_container = st.container()
+        with Predicted_container:
+            with st.chat_message("assistant"):
+                st.write("Predicted Network:")
+            with st.chat_message("assistant"):
+                create_and_display_network(Predicted_nodes, Predicted_edges, "#fefafb", "Predicted")
+            with st.chat_message("assistant"):
+                st.write("Predicted Answer:")
+            with st.chat_message("assistant"):
+                st.write(Predicted_Context)
+
+#######################################################################################################################################################################################################################
 
         st.header("Final Answer:")
         Final_Chain_Prompt = PromptTemplate(template=Final_Answer_Template, input_variables=["question", "CKG_Answer", "Pharos_Answer", "OpenTargets_Answer"])
         Final_Chain = LLMChain(prompt=Final_Chain_Prompt, llm=llm)
-        Final_Answer = Final_Chain.run(question=question, CKG_Answer=context, Pharos_Answer=Pharos_Context, OpenTargets_Answer=OpenTargets_Context)
+        Final_Answer = Final_Chain.run(question=question, CKG_Answer=context, Pharos_Answer=Pharos_Context, OpenTargets_Answer=OpenTargets_Context, Predicted_Answer=Predicted_Context)
 
         final_answer_container = st.container()
         with final_answer_container:
@@ -218,4 +270,3 @@ if question:
                 st.write("Final Answer:")
             with st.chat_message("assistant"):
                 st.write(Final_Answer)
-
