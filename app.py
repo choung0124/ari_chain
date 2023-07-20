@@ -42,7 +42,7 @@ from CustomLibrary.Predicted_QA import PredictedGrqphQA
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://tracked-chinese-involves-penetration.trycloudflare.com/"
+    model_url = "https://placed-mart-joe-expected.trycloudflare.com/"
     local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)
@@ -106,6 +106,18 @@ if question:
         if additional_entities:
             additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
             print(additional_entity_umls_dict)
+
+            keys_to_remove = []
+            for key, value in additional_entity_umls_dict.items():
+                # Check if any value is empty
+                if any(v is None or v == '' for v in value.values()):
+                    # Add the key to the list of keys to remove
+                    keys_to_remove.append(key)
+
+            # Remove the keys outside the loop
+            for key in keys_to_remove:
+                del additional_entity_umls_dict[key]
+
             knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
         else:
             knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types)
@@ -131,7 +143,7 @@ if question:
             with st.chat_message("assistant"):
                 st.write("CKG Network:")
             with st.chat_message("assistant"):
-                create_and_display_network(nodes, edges, '#fff6fe', "CKG")
+                create_and_display_network(nodes, edges, '#fff6fe', "CKG", names_list[0], names_list[1])
             with st.chat_message("assistant"):
                 st.write("CKG_Answer:")
             with st.chat_message("assistant"):
@@ -142,6 +154,18 @@ if question:
         if additional_entities:
             additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
             print(additional_entity_umls_dict)
+
+            keys_to_remove = []
+            for key, value in additional_entity_umls_dict.items():
+                # Check if any value is empty
+                if any(v is None or v == '' for v in value.values()):
+                    # Add the key to the list of keys to remove
+                    keys_to_remove.append(key)
+
+            # Remove the keys outside the loop
+            for key in keys_to_remove:
+                del additional_entity_umls_dict[key]
+                
             Pharos = PharosGraphQA(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
         else:
             Pharos = PharosGraphQA(uri, username, password, llm, entity_types)
@@ -165,7 +189,7 @@ if question:
             with st.chat_message("assistant"):
                 st.write("Pharos Network:")
             with st.chat_message("assistant"):
-                create_and_display_network(pharos_nodes, pharos_edges, '#fafff6', "Pharos")
+                create_and_display_network(pharos_nodes, pharos_edges, '#fafff6', "Pharos", names_list[0], names_list[1])
             with st.chat_message("assistant"):
                 st.write("Pharos Answer:")
             with st.chat_message("assistant"):
@@ -180,6 +204,18 @@ if question:
         if additional_entities:
             additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
             print(additional_entity_umls_dict)
+
+            keys_to_remove = []
+            for key, value in additional_entity_umls_dict.items():
+                # Check if any value is empty
+                if any(v is None or v == '' for v in value.values()):
+                    # Add the key to the list of keys to remove
+                    keys_to_remove.append(key)
+
+            # Remove the keys outside the loop
+            for key in keys_to_remove:
+                del additional_entity_umls_dict[key]
+
             OpenTargets = OpenTargetsGraphQA(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
         else:
             OpenTargets = OpenTargetsGraphQA(uri, username, password, llm, entity_types)
@@ -202,7 +238,7 @@ if question:
             with st.chat_message("assistant"):
                 st.write("OpenTargets Network:")
             with st.chat_message("assistant"):
-                create_and_display_network(OpenTargets_nodes, OpenTargets_edges, "#fefff6", "OpenTargets")
+                create_and_display_network(OpenTargets_nodes, OpenTargets_edges, "#fefff6", "OpenTargets", names_list[0], names_list[1])
             with st.chat_message("assistant"):
                 st.write("OpenTargets Answer:")
             with st.chat_message("assistant"):
@@ -233,40 +269,31 @@ if question:
         else:
             PredictedQA = PredictedGrqphQA(uri, username, password, llm, entity_types, question)
 
-        # Query the knowledge graph
-        graph_query = PredictedQA._call(names_list,
-                                                question,
-                                                generate_an_answer=True,
-                                                progress_callback=progress_callback,
-                                                previous_answer=OpenTargets_Context)
+        final_context = None
+
+        for response in PredictedQA._call(names_list, 
+                                            question,
+                                            previous_answer=OpenTargets_Context,
+                                            generate_an_answer=True, 
+                                            progress_callback=progress_callback):
+            
+            final_context = response["result"]
+            all_rels = response['all_rels']
+            names_to_print = response['names_to_print']
+
+            nodes, edges = parse_relationships_pyvis(all_rels)
+
+            # Create a new container for each similar entity
+            ckg_container = st.container()
+            with ckg_container:
+                with st.chat_message("assistant"):
+                    st.write(f"Predicted QA Based on Semantic Similarity:{names_to_print}")
+                with st.chat_message("assistant"):
+                    create_and_display_network(nodes, edges, '#fbfefa', "Predicted", names_list[0], names_list[1])
+                with st.chat_message("assistant"):
+                    st.write("Predicted Answer:")
+                with st.chat_message("assistant"):
+                    st.write(final_context)
         
-        Predicted_Context = graph_query["result"]
-        all_rels = graph_query['all_rels']
-        Predicted_nodes = set()
-
-        Predicted_nodes, Predicted_edges = parse_relationships_pyvis(all_rels)
-
-        Predicted_container = st.container()
-        with Predicted_container:
-            with st.chat_message("assistant"):
-                st.write("Predicted Network:")
-            with st.chat_message("assistant"):
-                create_and_display_network(Predicted_nodes, Predicted_edges, "#fefafb", "Predicted")
-            with st.chat_message("assistant"):
-                st.write("Predicted Answer:")
-            with st.chat_message("assistant"):
-                st.write(Predicted_Context)
-
 #######################################################################################################################################################################################################################
 
-        st.header("Final Answer:")
-        Final_Chain_Prompt = PromptTemplate(template=Final_Answer_Template, input_variables=["question", "CKG_Answer", "Pharos_Answer", "OpenTargets_Answer"])
-        Final_Chain = LLMChain(prompt=Final_Chain_Prompt, llm=llm)
-        Final_Answer = Final_Chain.run(question=question, CKG_Answer=context, Pharos_Answer=Pharos_Context, OpenTargets_Answer=OpenTargets_Context, Predicted_Answer=Predicted_Context)
-
-        final_answer_container = st.container()
-        with final_answer_container:
-            with st.chat_message("assistant"):
-                st.write("Final Answer:")
-            with st.chat_message("assistant"):
-                st.write(Final_Answer)

@@ -3,6 +3,8 @@ from transformers import logging
 from langchain.llms import TextGen
 from langchain.prompts import PromptTemplate
 from langchain import LLMChain
+from langchain.indexes import GraphIndexCreator
+from langchain.chains import GraphQAChain
 import streamlit as st
 import streamlit as st
 from pyvis.network import Network
@@ -32,7 +34,7 @@ from CustomLibrary.App_Utils import(
     get_additional_entity_umls_dict,
     create_and_display_network
 )
-from CustomLibrary.Graph_Visualize import parse_relationships_pyvis
+from CustomLibrary.Graph_Visualize import parse_relationships_pyvis, parse_relationships_graph_qa
 from CustomLibrary.Graph_Class import KnowledgeGraphRetrieval
 from CustomLibrary.Pharos_Graph_QA import PharosGraphQA
 from CustomLibrary.OpenTargets_Graph_QA import OpenTargetsGraphQA
@@ -42,7 +44,7 @@ from CustomLibrary.Predicted_QA import PredictedGrqphQA
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://tracked-chinese-involves-penetration.trycloudflare.com/"
+    model_url = "https://placed-mart-joe-expected.trycloudflare.com/"
     local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)
@@ -87,7 +89,7 @@ Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
 Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=llm)
 #Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=local_llm)
 
-question = st.chat_input("Enter your question")
+question = st.text_input("Enter your question")
 if question:
     with st.chat_message("user"):
         st.write(question)
@@ -134,6 +136,8 @@ SCN2A, SCN8A, and other sodium channel involvement: Lamotrigine interacts with m
 GBA-BCHE-ACHE pathway: GBA is involved in the degradation of beta-amyloid, while BCHE cleaves acetylcholinesterase (AChE). Lamotrigine could target GBA to enhance the clearance of beta-amyloid, complementing rivastigmine's AChE-degrading activity and potentially improving cholinergic neurotransmission. This complex network of interactions could lead to synergistic effects on cognitive function but also potential side effects due to altered amyloid or choline levels.
 These are just a few examples of the potential mechanisms that could underlie a synergistic drug-drug interaction between lamotrigine and rivastigmine in Lewy body dementia based on the additional context provided. Further research is needed to fully elucidate all the intricate relationships involved and optimize the use of these two medications together for maximum therapeutic benefit with minimal side effects."""
 
+        final_context = None
+        final_rels = set()
         # Query the knowledge graph
         for response in knowledge_graph._call(names_list, 
                                             question,
@@ -141,8 +145,9 @@ These are just a few examples of the potential mechanisms that could underlie a 
                                             generate_an_answer=True, 
                                             progress_callback=progress_callback):
         
-            context = response["result"]
+            final_context = response["result"]
             all_rels = response['all_rels']
+            final_rels.update(all_rels)
             names_to_print = response['names_to_print']
 
             nodes, edges = parse_relationships_pyvis(all_rels)
@@ -153,9 +158,21 @@ These are just a few examples of the potential mechanisms that could underlie a 
                 with st.chat_message("assistant"):
                     st.write(f"Predicted QA Based on Semantic Similarity:{names_to_print}")
                 with st.chat_message("assistant"):
-                    create_and_display_network(nodes, edges, '#fff6fe', "CKG")
+                    create_and_display_network(nodes, edges, '#fff6fe', "CKG", names_list[0], names_list[1])
                 with st.chat_message("assistant"):
                     st.write("CKG_Answer:")
                 with st.chat_message("assistant"):
-                    st.write(context)
-        
+                    st.write(final_context)
+
+    nodes, edges = parse_relationships_graph_qa(final_rels)
+    index_creator = GraphIndexCreator(llm=llm)
+    graph = index_creator.from_text(edges)
+    chain = GraphQAChain.from_llm(llm=llm, graph=graph, verbose=True)
+
+    followup_question = st.chat_input("Enter your followup question")
+    if followup_question:
+        with st.chat_message("user"):
+            st.write(followup_question)
+        answer = chain.run(followup_question)
+        with st.chat_message("assistant"):
+            st.write(answer)
