@@ -260,7 +260,7 @@ def query_similar_drugs(string):
     paths = []
     nodes = []
     if response.get('data') and response['data'].get('drug') and response['data']['drug'].get('similarEntities'):
-        limit = 3
+        limit = 2
         count = 0
         for similar_entity in response['data']['drug']['similarEntities']:
             if count >= limit:
@@ -342,9 +342,10 @@ def query_predicted_target_info(string, question, progress_callback=None):
     result_dict = {}
 
     if similar_targets_response.get('data') and similar_targets_response['data'].get('target') and similar_targets_response['data']['target'].get('similarEntities'):
-
+        count = 0
         for similar_entity in similar_targets_response['data']['target']['similarEntities'][1:]:
-
+            if count >= 4:
+                break
             ensg_id = similar_entity['id']
             score = round(similar_entity['score'], 3)
 
@@ -427,7 +428,7 @@ def query_predicted_target_info(string, question, progress_callback=None):
                                         "rels": mid_rels,
                                         "score": score
                                         }
-
+                    count += 1
     return result_dict
     
 
@@ -488,8 +489,10 @@ def query_predicted_disease_info(string, question, progress_callback=None):
   final_unique_disease_target_target_rels = []
 
   if similar_disease_response.get('data') and similar_disease_response['data'].get('disease') and similar_disease_response['data']['disease'].get('similarEntities'):
-
+      count = 0
       for similar_entity in similar_disease_response['data']['disease']['similarEntities'][1:]:
+          if count >= 4:
+              break
           efo_id = similar_entity['id']
           score = round(similar_entity['score'], 3)
           
@@ -570,6 +573,7 @@ def query_predicted_disease_info(string, question, progress_callback=None):
                                     "rels": mid_unique_disease_target_target_rels,
                                     "score": score
                                     }
+              count += 1
 
       return result_dict
     
@@ -640,9 +644,11 @@ def query_predicted_drug_info(string, question, progress_callback=None):
     nodes = []
     result_dict = {}
     if similar_drugs_response.get('data') and similar_drugs_response['data'].get('drug') and similar_drugs_response['data']['drug'].get('similarEntities'):
-        
+        count = 0
         for similar_entity in similar_drugs_response['data']['drug']['similarEntities'][1:]:
-
+            
+            if count >= 4:
+                break
             chembl_id = similar_entity['id']
             score = round(similar_entity['score'], 3)
             
@@ -732,6 +738,7 @@ def query_predicted_drug_info(string, question, progress_callback=None):
                                      "rels": unique_drug_disease_rels + unique_drug_target_pathway_rels + unique_drug_target_target_rels,
                                      "score": score
                 }
+                count += 1
 
     return result_dict
 
@@ -848,7 +855,7 @@ def query_drug_info(string, question, progress_callback=None):
           selected_drug_target_paths, selected_drug_target_nodes, unique_drug_target_rels, selected_stage2 = select_paths(drug_target_paths,
                                                                                                                                 question,
                                                                                                                                 15,
-                                                                                                                                5,
+                                                                                                                                3,
                                                                                                                                 progress_callback)
           final_paths.extend(selected_drug_target_paths)
           final_drug_target_nodes.extend(selected_drug_target_nodes)
@@ -858,7 +865,7 @@ def query_drug_info(string, question, progress_callback=None):
           selected_drug_pathway_paths, selected_drug_pathway_nodes, unique_drug_pathway_rels, selected_stage2 = select_paths(drug_target_pathway_paths,
                                                                                                                                     question,
                                                                                                                                     15,
-                                                                                                                                    5,
+                                                                                                                                    3,
                                                                                                                                     progress_callback)    
           final_paths.extend(selected_drug_pathway_paths)
           final_drug_pathway_nodes.extend(selected_drug_pathway_nodes)
@@ -868,7 +875,7 @@ def query_drug_info(string, question, progress_callback=None):
           selected_drug_disease_paths, selected_drug_disease_nodes, unique_drug_disease_rels, selected_stage2 = select_paths(drug_disease_paths,
                                                                                                                                     question,
                                                                                                                                     15,
-                                                                                                                                    5,
+                                                                                                                                    3,
                                                                                                                                     progress_callback)
           final_paths.extend(selected_drug_disease_paths)
           final_drug_disease_nodes.extend(selected_drug_disease_nodes)
@@ -878,7 +885,7 @@ def query_drug_info(string, question, progress_callback=None):
           selected_drug_target_target_paths, selected_drug_target_target_nodes, unique_drug_target_target_rels, selected_stage2 = select_paths(drug_target_target_paths,
                                                                                                                                     question,
                                                                                                                                     15,
-                                                                                                                                    5,
+                                                                                                                                    3,
                                                                                                                                     progress_callback)
           final_paths.extend(selected_drug_target_target_paths)
           final_drug_target_target_nodes.extend(selected_drug_target_target_nodes)

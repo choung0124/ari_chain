@@ -45,7 +45,7 @@ def generate_answer(llm, source_list, target_list, inter_direct_list, inter_dire
     print(answer)
     return answer
 
-class PredictedGrqphQA:
+class FrankenPredictedQA:
     def __init__(self, uri, username, password, llm, entity_types, question, additional_entity_types=None):
         self.graph = Graph(uri, auth=(username, password))
         self.llm = llm

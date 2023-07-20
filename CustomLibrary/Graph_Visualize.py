@@ -49,3 +49,17 @@ def parse_relationships_pyvis(relationships):
             nodes.add(target)
             edges.append((source, target, relationship_type))
     return list(nodes), edges
+
+def parse_relationships_graph_qa(relationships):
+    nodes = set()
+    edges = []
+    for relationship in relationships:
+        elements = relationship.split(' -> ')
+        for i in range(0, len(elements) - 2, 2):
+            source = elements[i]
+            relationship_type = elements[i + 1]
+            target = elements[i + 2]
+            nodes.add(source)
+            nodes.add(target)
+            edges.append((source, target, relationship_type))
+    return list(nodes), edges

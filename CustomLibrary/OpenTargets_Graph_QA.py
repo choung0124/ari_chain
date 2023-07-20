@@ -65,7 +65,7 @@ class OpenTargetsGraphQA:
         if source_entity_type == "Disease":
             source_paths, source_nodes, formatted_source_rels = query_disease_info(source_entity_name, question)
         if source_entity_type == "Drug":
-            source_paths, source_nodes, formatted_source_rels= query_predicted_drug_info(source_entity_name, question)
+            source_paths, source_nodes, formatted_source_rels= query_drug_info(source_entity_name, question)
         if source_entity_type == "Gene":
             source_paths, target_list, formatted_targets = query_target_info(source_entity_name, question)
             source_nodes = target_list
@@ -74,7 +74,7 @@ class OpenTargetsGraphQA:
         if target_entity_type == "Disease":
             target_paths, target_nodes, formatted_target_rels = query_disease_info(target_entity_name, question)
         if target_entity_type == "Drug":
-            target_paths, target_nodes, formatted_target_rels= query_predicted_drug_info(target_entity_name, question)
+            target_paths, target_nodes, formatted_target_rels= query_drug_info(target_entity_name, question)
         if target_entity_type == "Gene":
             target_paths, target_list, formatted_targets = query_target_info(target_entity_name, question)
             target_nodes = target_list

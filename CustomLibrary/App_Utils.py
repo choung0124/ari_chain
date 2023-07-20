@@ -90,7 +90,7 @@ def get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add):
 
     return additional_entity_umls_dict
 
-def create_and_display_network(nodes, edges, back_color, name):
+def create_and_display_network(nodes, edges, back_color, name, source, target):
     back_color = colour.Color(back_color)
     bg_color = back_color.get_hex()
 
@@ -103,10 +103,20 @@ def create_and_display_network(nodes, edges, back_color, name):
     back_color.luminance *= 0.5  # reduce luminance by additional 50%
     node_color = back_color.get_hex()
 
+    source_node_color = "#ff0000"
+    target_node_color = "#00ff00"
+
     # Initialize Network with the hexadecimal color string
     net = Network(height='750px', width='100%', bgcolor=bg_color, font_color='black', directed=True)
 
     for node in nodes:
+        if node == source:
+            node_color = source_node_color
+        elif node == target:
+            node_color = target_node_color
+        else:
+            node_color = back_color.get_hex()
+            
         net.add_node(node, label=node, title=node, color=node_color, url="http://example.com/{}".format(node))
 
     # add edges

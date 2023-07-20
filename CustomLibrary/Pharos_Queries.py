@@ -57,6 +57,43 @@ def query_id(string, get_target: Optional[bool], get_disease:Optional[bool], get
     return None
 
 
+test_query = """
+query associatedTargets($name: String!, $isdrug: Boolean){
+    targets(filter: { associatedDisease: $name }) {
+    targets(top: 5){
+      name
+      sym
+      diseaseAssociationDetails {
+        name
+        dataType
+      }
+      pathways {
+        name
+      }
+      ppis {
+        target {
+          sym
+        }
+        type
+      }
+      ligands(isdrug: $isdrug) {
+        name
+        isdrug
+        activities {
+          value
+          target {
+            sym
+          }
+          type
+        }
+      }
+    }
+    }
+}
+"""
+
+
+
 def query_disease_associated_targets(string):
     query = """
     query associatedTargets($name: String!){
