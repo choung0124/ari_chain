@@ -44,7 +44,7 @@ from CustomLibrary.Predicted_QA import PredictedGrqphQA
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://placed-mart-joe-expected.trycloudflare.com/"
+    model_url = "https://foods-believe-happened-f.trycloudflare.com/"
     local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)

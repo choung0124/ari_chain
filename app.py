@@ -21,7 +21,13 @@ from CustomLibrary.Custom_Prompts import (
     Entity_type_Template_add_Vicuna,
     Entity_type_Template_add_Alpaca,
     Entity_Extraction_Template_alpaca,
-    Additional_Entity_Extraction_Template_Alpaca
+    Additional_Entity_Extraction_Template_Alpaca,
+    Entity_type_Template_add_Upstage,
+    Entity_Extraction_Template_Upstage,
+    Additional_Entity_Extraction_Template_Upstage,
+    Entity_type_Template_Upstage,
+    Graph_Answer_Gen_Template_Upstage
+
 )
 from CustomLibrary.App_Utils import(
     get_umls_info, 
@@ -42,15 +48,15 @@ from CustomLibrary.Predicted_QA import PredictedGrqphQA
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://placed-mart-joe-expected.trycloudflare.com/"
+    model_url = "https://norton-fitness-sponsors-healing.trycloudflare.com/"
     local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)
-    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
+    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_Upstage, input_variables=["input"])
     #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
     entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=llm, output_key="output",)
     #entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=local_llm, output_key="output",)
-    return llm, entity_extraction_chain
+    return llm, entity_extraction_chain, local_llm
 
 @st.cache_data()
 def initialize_knowledge_graph():
@@ -71,16 +77,16 @@ def progress_callback(progress):
 
 ###########################################################################################################################################################################################################################################
 
-additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template, input_variables=["input", "entities"])
+additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Upstage, input_variables=["input", "entities"])
 #additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Alpaca, input_variables=["input", "entities"])
-llm, entity_extraction_chain = initialize_models()
+llm, entity_extraction_chain, local_llm = initialize_models()
 #llm, local_llm, entity_extraction_chain = initialize_models()
 uri, username, password = initialize_knowledge_graph()
 additional_entity_extraction_chain = CustomLLMChainAdditionalEntities(prompt=additional_entity_extraction_prompt, llm=llm, output_key="output",)
 
-Entity_type_prompt = PromptTemplate(template=Entity_type_Template, input_variables=["input"])
+Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Upstage, input_variables=["input"])
 #Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Alpaca, input_variables=["input"])
-Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add, input_variables=["input"])
+Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Upstage, input_variables=["input"])
 #Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Alpaca, input_variables=["input"])
 Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
 #Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=local_llm)
@@ -118,9 +124,9 @@ if question:
             for key in keys_to_remove:
                 del additional_entity_umls_dict[key]
 
-            knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
+            knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, local_llm, entity_types, additional_entity_types=additional_entity_umls_dict)
         else:
-            knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, llm, entity_types)
+            knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, local_llm, entity_types)
 
         # Query the knowledge graph
         graph_query = knowledge_graph._call(names_list, 
@@ -165,10 +171,10 @@ if question:
             # Remove the keys outside the loop
             for key in keys_to_remove:
                 del additional_entity_umls_dict[key]
-                
-            Pharos = PharosGraphQA(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
+
+            Pharos = PharosGraphQA(uri, username, password, local_llm, entity_types, additional_entity_types=additional_entity_umls_dict)
         else:
-            Pharos = PharosGraphQA(uri, username, password, llm, entity_types)
+            Pharos = PharosGraphQA(uri, username, password, local_llm, entity_types)
 
         # Query the knowledge graph
         graph_query = Pharos._call(names_list, 
@@ -216,9 +222,9 @@ if question:
             for key in keys_to_remove:
                 del additional_entity_umls_dict[key]
 
-            OpenTargets = OpenTargetsGraphQA(uri, username, password, llm, entity_types, additional_entity_types=additional_entity_umls_dict)
+            OpenTargets = OpenTargetsGraphQA(uri, username, password, local_llm, entity_types, additional_entity_types=additional_entity_umls_dict)
         else:
-            OpenTargets = OpenTargetsGraphQA(uri, username, password, llm, entity_types)
+            OpenTargets = OpenTargetsGraphQA(uri, username, password, local_llm, entity_types)
 
         # Query the knowledge graph
         graph_query = Pharos._call(names_list,
@@ -264,10 +270,10 @@ if question:
                 del additional_entity_umls_dict[key]
 
 
-            PredictedQA = PredictedGrqphQA(uri, username, password, llm, entity_types, question, additional_entity_types=additional_entity_umls_dict)
+            PredictedQA = PredictedGrqphQA(uri, username, password, local_llm, entity_types, question, additional_entity_types=additional_entity_umls_dict)
 
         else:
-            PredictedQA = PredictedGrqphQA(uri, username, password, llm, entity_types, question)
+            PredictedQA = PredictedGrqphQA(uri, username, password, local_llm, entity_types, question)
 
         final_context = None
 
