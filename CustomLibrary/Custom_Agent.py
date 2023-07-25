@@ -4,7 +4,6 @@ from typing import List, Tuple, Any, Union, Callable, Type, Optional, Dict
 from langchain.prompts import StringPromptTemplate
 import re
 from langchain.schema import AgentAction, AgentFinish, OutputParserException
-from CustomLibrary.Custom_Prompts import prompt_start_template, prompt_mid_template, prompt_final_template
 from langchain.chains import LLMChain
 import json
 
@@ -98,42 +97,3 @@ class PubmedAgentOuputParser(AgentOutputParser):
         # Return the action and action input
         return AgentAction(tool=action, tool_input=action_input.strip(" ").strip('"'), log=llm_output)
 
-
-valid_answers = ['Action', 'Final Answer']
-valid_tools = ['Retrieve articles from Pubmed']
-
-class CustomAgentGuidance:
-    def __init__(self, guidance, tools, context, num_iter=5):
-        self.guidance = guidance
-        self.tools = tools
-        self.num_iter = num_iter
-        self.context = context
-
-    def do_tool(self, tool_name, actInput):
-        return self.tools[tool_name](actInput)
-    
-    def __call__(self, query):
-        prompt_start = self.guidance(prompt_start_template)
-        result_start = prompt_start(question=query, valid_answers=valid_answers, context=self.context)
-        print(result_start)
-
-        result_mid = result_start
-        
-        for _ in range(self.num_iter - 1):
-            if result_mid['answer'] == 'Final Answer':
-                break
-            history = result_mid.__str__()
-            prompt_mid = self.guidance(prompt_mid_template)
-            result_mid = prompt_mid(history=history, do_tool=self.do_tool, valid_answers=valid_answers, valid_tools=valid_tools)
-            print(result_mid)
-        if result_mid['answer'] != 'Final Answer':
-            history = result_mid.__str__()
-            prompt_mid = self.guidance(prompt_final_template)
-            result_final = prompt_mid(history=history, do_tool=self.do_tool, valid_answers=['Final Answer'], valid_tools=valid_tools)
-        else:
-            history = result_mid.__str__()
-            prompt_mid = self.guidance(history + "{{gen 'fn' stop='\\n'}}")
-            result_final = prompt_mid()
-            print(result_final)
-        return result_final
-    

@@ -1,6 +1,11 @@
 from langchain.prompts import PromptTemplate
 from langchain import LLMChain
-from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template, Graph_Answer_Gen_Template_alpaca, Graph_Answer_Gen_Template_airo
+from CustomLibrary.Custom_Prompts import (
+    Graph_Answer_Gen_Template, 
+    Graph_Answer_Gen_Template_alpaca, 
+    Graph_Answer_Gen_Template_airo,
+    Graph_Answer_Gen_Template_Upstage
+)
 from sentence_transformers import SentenceTransformer
 from CustomLibrary.Graph_Queries import construct_path_string, construct_relationship_string
 from sklearn.cluster import KMeans
@@ -11,7 +16,7 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from typing import List, Optional
 
 def generate_answer(llm, relationships_list, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, additional_rels:Optional[List[str]]=None):
-    prompt = PromptTemplate(template=Graph_Answer_Gen_Template, input_variables=["input", "question"])
+    prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     gen_chain = LLMChain(llm=llm, prompt=prompt)
     multi_hop = ', '.join(relationships_list)

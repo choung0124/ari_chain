@@ -41,10 +41,10 @@ class KnowledgeGraphRetrieval:
                 additional_entity_direct_graph_rels = list(set(rel for rel in additional_entity_direct_graph_rels))
                 additional_entity_direct_relationships = list(set(rel for rel in additional_entity_direct_relationships))
 
-        additional_entity_direct_graph_rels = list(set(additional_entity_direct_graph_rels))
-        additional_entity_direct_relationships = list(set(additional_entity_direct_relationships))
-        print("additional_entity_direct_graph_relationships")
-        print(additional_entity_direct_relationships)
+            additional_entity_direct_graph_rels = list(set(additional_entity_direct_graph_rels))
+            additional_entity_direct_relationships = list(set(additional_entity_direct_relationships))
+            print("additional_entity_direct_graph_relationships")
+            print(additional_entity_direct_relationships)
 
         final_target_paths, selected_target_nodes, target_unique_rels, selected_target_paths = select_paths(unique_target_paths_list, question, len(unique_target_paths_list)//15, 10, progress_callback)
         print("final_target_paths")
@@ -128,8 +128,8 @@ class KnowledgeGraphRetrieval:
         all_unique_graph_rels.update(inter_unique_rels)
         all_unique_graph_rels.update(final_inter_direct_unique_graph_rels)
         all_unique_graph_rels.update(inter_direct_inter_unique_rels)
-        all_unique_graph_rels.update(additional_entity_direct_graph_rels)
-
+        if self.additional_entity_types is not None:
+            all_unique_graph_rels.update(additional_entity_direct_graph_rels)
 
 ########################################################################################################
         

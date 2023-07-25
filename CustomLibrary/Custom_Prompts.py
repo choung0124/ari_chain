@@ -29,6 +29,17 @@ Entities: [(Entity1_name, Entity1_ype), (Entity2_name, Entity2_type)]
 Input: {input}
 ### Assistant:"""
 
+Entity_type_Template_Upstage = """### System: Give the entity types of all the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Your response should be a list of tuples, use double quotes instead of single quotes. Choose one for each entity from the list below:
+Entity Types:
+Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
+Your response should strictly follow this format:
+Entities: [("Entity1_name", "Entity1_ype"), ("Entity2_name", "Entity2_type")]
+
+### User:
+Input: {input}
+
+### Assistant:"""
+
 Entity_type_Template_add = """### Human: Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose one for each entity from the list below:
 Entity Types:
 Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
@@ -36,6 +47,17 @@ Your response should be a list of tuples, use double quotes instead of single qu
 Your response should strictly follow this format:
 Entities: [(Entity_name, Entity_type)]
 Input: {input}
+### Assistant:"""
+
+Entity_type_Template_add_Upstage = """### System: Give the entity types of the bimedical entity/entities provided in the input, choose the entity types that accurately represent each/the entity provided in the input. Your response should be a list of tuples, use double quotes instead of single quotes. Choose one for each entity from the list below:
+Entity Types:
+Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units
+Your response should strictly follow this format:
+Entities: [(Entity_name, Entity_type)]
+
+### User:
+Input: {input}
+
 ### Assistant:"""
 
 Entity_type_Template_add_Alpaca = """### Instruction:
@@ -50,7 +72,6 @@ Entities: [(Entity_name, Entity_type)]
 
 ### Response:
 """
-
 Entity_type_Template_add_Vicuna= """USER: Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose one for each entity from the list below:
 Entity Types:
 Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
@@ -76,10 +97,18 @@ Entities: [extracted entity1, extracted entity2]
 Question: {input}
 ASSISTANT:"""
 
-
 Entity_Extraction_Template = """### Human: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
 Entities: ["extracted entity1", "extracted entity2"]
 Question: {input}
+### Assistant:
+"""
+
+Entity_Extraction_Template_Upstage = """### System: Extract only two entities from the question, do not try to answer the question. Include only the two extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
+Entities: ["extracted entity1", "extracted entity2"]
+
+### User:
+Question: {input}
+
 ### Assistant:
 """
 
@@ -104,6 +133,21 @@ Additional Entities: []
 
 Entities: {entities}
 Question: {input}
+### Assistant:
+"""
+
+Additional_Entity_Extraction_Template_Upstage = """### System:
+Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing. Do not use speachmarks or quotation marks around the entity names.
+Your response should strictly follow this format if there is only one other biomedical entity in the question:
+Additional Entities: [entity]
+Your response should strictly follow this format if there are no other biomedical entities in the question:
+Additional Entities: []
+Your response should strictly follow this format if there are multiple other biomedical entities in the question:
+Additional Entities: [entity1, entity2, entity3]
+### User:
+Entities: {entities}
+Question: {input}
+
 ### Assistant:
 """
 
@@ -152,7 +196,9 @@ Summarize this information, include only the generated summary in your response:
 ### Response:
 """
 
-Graph_Answer_Gen_Template_alpaca = """### Instruction: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Graph_Answer_Gen_Template_alpaca = """Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+### Instruction: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
 Question: {question}
 Context: 
 {input}
@@ -164,6 +210,17 @@ Graph_Answer_Gen_Template = """### Human: Give a detailed answer the question, u
 Question: {question}
 Context: 
 {input}
+### Assistant: """
+
+
+
+Graph_Answer_Gen_Template_Upstage = """### System: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+
+### User:
+Question: {question}
+Context:
+{input}
+
 ### Assistant: """
 
 Graph_Answer_Gen_Template2 = """### Human: Below is a question, your previous answer to the question, and some additional context. Using the additional context, improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
@@ -219,16 +276,6 @@ Question: {question}
 ### Response:
 """
 
-CYPHER_GENERATION_TEMPLATE = """You are an artifical intelligence assistant that generates Cypher statements to answer questions from a user.
-
-USER: Generate Cypher statement to query a Neo4j graph database for all information that is needed to answer the question. Use only the provided relationship types and properties in the schema. Make sure you find indirect relations too. Use the UMLS_CUIs provided below to help you generate a cypher statement. Only include the generated Cypher statement in your response. Strictly follow the syntax of the cypher query language, for Neo4j version 4.
-Here is the Graph database schema: {schema}
-Here are the UMLS IDs you should use in your cypher statement: {UMLS_context}
-The question is: {question}
-
-ASSISTANT:"""
-
-INTERMEDIATE_STEPS_KEY = "intermediate_steps"
 
 Vicuna_QA_PROMPT_TEMPLATE = """You are a biomedical research assistant gives detailed answers to a user's questions, using the information given to you.
 USER: give a detailed response to the question using the context below, the context is sourced from a curated biomedical knowledge graph.
@@ -245,97 +292,3 @@ Context: {context}
 The question is: {input}
 
 ### Response:"""
-
-PUBMED_AGENT_TEMPLATE = """Below is an instruction that describes a task. Write a response that appropriately completes the request.
-
-### Instruction: Perform further research based on the context given to you. You have access to the following tools:{tools}. Strictly use the following format:
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Findings: The results of your research
-
-Context: {input}
-
-### Response:
-{agent_scratchpad}"""
-
-PUBMED_AGENT_TEMPLATE_VICUNA = """USER: Perform further research based on the context given to you. You have access to the following tools: {tools}
-Strictly use the following format:
-
-Thought: you should always think about what to do
-Action: one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-...(this Thought/Action/Action Input/Observation can repeat many times, repeat until you have enough information to infer a biological pathway from the context)
-Thought: I now know the final answer
-Findings: The results of your research
-
-Context: {input}
-
-ASSISTANT:
-{agent_scratchpad}"""
-
-prompt_start_template2 = """USER: Using the context and tools given to you, give an answer to the question, explaining your thought process step by step. You have access to the following tools:
-
-Retrieve articles from Pubmed: Useful for when you need to retrieve information from Pubmed.
-
-Use the information from this context in your answer: {{context}}
-
-Strictly use the following format, repeat until you have enough information to give a definitive answer:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [Retrieve articles from Pubmed]
-Action Input: the input to the action, should be a question.
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation repeats at least 5 times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question, with reasoning
-
-The question is: {{question}}
-
-ASSISTANT:
-Question: {{question}}
-Thought: {{gen 't1' stop='\\n'}}
-{{select 'answer' logprobs='logprobs' options=valid_answers}}: """
-
-prompt_start_template = """USER: Based on the context below, perform further research until you can explain the underlying mechanism in the context. You have access to the following tools:
-
-Retrieve articles from Pubmed: Useful for when you need to retrieve information from Pubmed.
-
-Perform further research based on this context until you can give an answer to the question, with reasoning: {{context}}
-
-Strictly use the following format, repeat until you have enough information to answer the question:
-
-Context: the context you have been given
-Question: the input question you must answer
-Thought: I should understand the context, then plan how I will gather more information related to the context
-Action: the action to take, should be one of [Retrieve articles from Pubmed]
-Action Input: the input to the action, should be a single python string
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation repeats at least 5 times)
-Thought: I now have enough information to explain the underlying mechanisms in the context
-Final Answer: the final answer to the original input question, with reasoning
-
-The question is: {{question}}
-
-ASSISTANT:
-Context: {{context}}
-Question: {{question}}
-Thought: {{gen 't1' stop='\\n'}}
-{{select 'answer' logprobs='logprobs' options=valid_answers}}: """
-
-prompt_mid_template = """{{history}}{{select 'tool_name' options=valid_tools}}
-Action Input: {{gen 'actInput' stop='\\n'}}
-Observation: {{do_tool tool_name actInput}}
-Thought: {{gen 'thought' stop='\\n'}}
-{{select 'answer' logprobs='logprobs' options=valid_answers}}: """
-
-prompt_final_template = """{{history}}{{select 'tool_name' options=valid_tools}}
-Action Input: {{gen 'actInput' stop='\\n'}}
-Observation: {{do_tool tool_name actInput}}
-Thought: {{gen 'thought' stop='\\n'}}
-{{select 'answer' options=valid_answers}}: {{gen 'fn' stop='\\n'}}"""
