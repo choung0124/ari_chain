@@ -48,14 +48,14 @@ from CustomLibrary.Predicted_QA import PredictedGrqphQA
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://norton-fitness-sponsors-healing.trycloudflare.com/"
+    model_url = "https://professor-response-encourages-gbp.trycloudflare.com/"
     local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)
-    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_Upstage, input_variables=["input"])
-    #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_alpaca, input_variables=["input"])
+    #Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template_Upstage, input_variables=["input"])
+    Entity_extraction_prompt = PromptTemplate(template=Entity_Extraction_Template, input_variables=["input"])
+    #entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=llm, output_key="output",)
     entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=llm, output_key="output",)
-    #entity_extraction_chain = CustomLLMChain(prompt=Entity_extraction_prompt, llm=local_llm, output_key="output",)
     return llm, entity_extraction_chain, local_llm
 
 @st.cache_data()
@@ -77,17 +77,17 @@ def progress_callback(progress):
 
 ###########################################################################################################################################################################################################################################
 
-additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Upstage, input_variables=["input", "entities"])
-#additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Alpaca, input_variables=["input", "entities"])
+#additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template_Upstage, input_variables=["input", "entities"])
+additional_entity_extraction_prompt = PromptTemplate(template=Additional_Entity_Extraction_Template, input_variables=["input", "entities"])
 llm, entity_extraction_chain, local_llm = initialize_models()
 #llm, local_llm, entity_extraction_chain = initialize_models()
 uri, username, password = initialize_knowledge_graph()
 additional_entity_extraction_chain = CustomLLMChainAdditionalEntities(prompt=additional_entity_extraction_prompt, llm=llm, output_key="output",)
 
-Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Upstage, input_variables=["input"])
-#Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Alpaca, input_variables=["input"])
-Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Upstage, input_variables=["input"])
-#Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Alpaca, input_variables=["input"])
+#Entity_type_prompt = PromptTemplate(template=Entity_type_Template_Upstage, input_variables=["input"])
+Entity_type_prompt = PromptTemplate(template=Entity_type_Template, input_variables=["input"])
+#Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add_Upstage, input_variables=["input"])
+Entity_type_prompt_add = PromptTemplate(template=Entity_type_Template_add, input_variables=["input"])
 Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=llm)
 #Entity_type_chain = LLMChain(prompt=Entity_type_prompt, llm=local_llm)
 Entity_type_chain_add = LLMChain(prompt=Entity_type_prompt_add, llm=llm)
@@ -109,7 +109,11 @@ if question:
 
 ###########################################################################################################################################################################################################################################
 
-        if additional_entities:
+        if not additional_entities:
+            knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, local_llm, entity_types)
+
+        else:
+            print(additional_entities)
             additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
             print(additional_entity_umls_dict)
 
@@ -125,8 +129,6 @@ if question:
                 del additional_entity_umls_dict[key]
 
             knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, local_llm, entity_types, additional_entity_types=additional_entity_umls_dict)
-        else:
-            knowledge_graph = KnowledgeGraphRetrieval(uri, username, password, local_llm, entity_types)
 
         # Query the knowledge graph
         graph_query = knowledge_graph._call(names_list, 
@@ -157,7 +159,9 @@ if question:
         
 #######################################################################################################################################################################################################################
         
-        if additional_entities:
+        if not additional_entities:
+            Pharos = PharosGraphQA(uri, username, password, local_llm, entity_types)
+        else:
             additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
             print(additional_entity_umls_dict)
 
@@ -173,8 +177,6 @@ if question:
                 del additional_entity_umls_dict[key]
 
             Pharos = PharosGraphQA(uri, username, password, local_llm, entity_types, additional_entity_types=additional_entity_umls_dict)
-        else:
-            Pharos = PharosGraphQA(uri, username, password, local_llm, entity_types)
 
         # Query the knowledge graph
         graph_query = Pharos._call(names_list, 
@@ -207,7 +209,9 @@ if question:
 
         st.header("OpenTargets Graph QA")
 
-        if additional_entities:
+        if not additional_entities:
+            OpenTargets = OpenTargetsGraphQA(uri, username, password, local_llm, entity_types)
+        else:
             additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
             print(additional_entity_umls_dict)
 
@@ -223,9 +227,6 @@ if question:
                 del additional_entity_umls_dict[key]
 
             OpenTargets = OpenTargetsGraphQA(uri, username, password, local_llm, entity_types, additional_entity_types=additional_entity_umls_dict)
-        else:
-            OpenTargets = OpenTargetsGraphQA(uri, username, password, local_llm, entity_types)
-
         # Query the knowledge graph
         graph_query = Pharos._call(names_list,
                                                 question,
@@ -254,7 +255,9 @@ if question:
 
         st.header("Predicted Graph QA based on sementic similarity")
 
-        if additional_entities:
+        if not additional_entities:
+            PredictedQA = PredictedGrqphQA(uri, username, password, local_llm, entity_types, question)
+        else:
             additional_entity_umls_dict = get_additional_entity_umls_dict(additional_entities, Entity_type_chain_add)
             print(additional_entity_umls_dict)
 
@@ -268,13 +271,8 @@ if question:
             # Remove the keys outside the loop
             for key in keys_to_remove:
                 del additional_entity_umls_dict[key]
-
-
+                
             PredictedQA = PredictedGrqphQA(uri, username, password, local_llm, entity_types, question, additional_entity_types=additional_entity_umls_dict)
-
-        else:
-            PredictedQA = PredictedGrqphQA(uri, username, password, local_llm, entity_types, question)
-
         final_context = None
 
         for response in PredictedQA._call(names_list, 
