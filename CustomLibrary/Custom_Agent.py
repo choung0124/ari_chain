@@ -21,7 +21,7 @@ def parse_llm_output(output: str) -> list:
     if entities_match:
         entities = entities_match.group(1)
         # Split the entities by comma and strip the surrounding spaces and quotes
-        entities = [e.strip().strip('"') for e in entities.split(',')]
+        entities = entities.strip('[]').strip("'").split("', '")
         return entities
     else:
         return []
@@ -36,14 +36,15 @@ class CustomLLMChainAdditionalEntities(LLMChain):
         return parse_llm_output_additional(output)
 
 def parse_llm_output_additional(output: str) -> list:
-    entities_match = re.search(r"Additional Entities: \[(.*?)\]", output)
+    entities_match = re.search(r'Additional Entities: (\[[\'\"\“\”].*?[\'\"\“\”]\])', output)
+    print(f"entities_match: {entities_match}")  # Debugging line
     if entities_match:
         entities = entities_match.group(1)
-        # Split the entities by comma and strip the surrounding spaces and quotes
-        entities = [e.strip().strip('"') for e in entities.split(',')]
+        entities = entities.strip('[]').strip("'\"“”").split("', '")
         return entities
     else:
         return []
+
 # Set up a prompt template
 class PubmedAgentPromptTemplate(StringPromptTemplate):
     # The template to use

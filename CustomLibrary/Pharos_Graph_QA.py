@@ -15,7 +15,7 @@ from CustomLibrary.Graph_Utils import (
     select_paths, 
     select_paths2, 
 )
-from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template2
+from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template2, Graph_Answer_Gen_Template2_alpaca
 
 from CustomLibrary.Pharos_Queries import (
     ligand_query,
@@ -24,7 +24,7 @@ from CustomLibrary.Pharos_Queries import (
 )
 
 def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, previous_answer, source, target, additional_list:Optional[List[str]]=None):
-    prompt = PromptTemplate(template=Graph_Answer_Gen_Template2, input_variables=["input", "question", "previous_answer"])
+    prompt = PromptTemplate(template=Graph_Answer_Gen_Template2_alpaca, input_variables=["input", "question", "previous_answer"])
     #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     gen_chain = LLMChain(llm=llm, prompt=prompt)
     source_rels = ', '.join(source_list)
@@ -101,9 +101,9 @@ class PharosGraphQA:
                     graph_rels.update(formatted_additional_entity_rels)
 
         
-        names_set = set(names_list)
+        #names_set = set(names_list)
         #query_nodes.update(final_path_nodes)
-        query_nodes = [name for name in query_nodes if name.lower() not in names_set]
+        #query_nodes = [name for name in query_nodes if name.lower() not in names_set]
         print("query nodes")
         print(len(query_nodes))
         print(query_nodes)
@@ -139,14 +139,14 @@ class PharosGraphQA:
 
         if final_inter_direct_relationships:
             target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, final_selected_inter_direct_nodes, query_nodes)
-            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, 15, 30, progress_callback)
+            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, 15, 50, progress_callback)
         else:
             final_inter_direct_relationships = []
             selected_inter_direct_nodes = []
 
             target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, query_nodes, query_nodes)
             if target_inter_relations:
-                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 10, progress_callback)
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 50, progress_callback)
             else:
                 final_inter_direct_inter_relationships = []
                 selected_inter_direct_inter_nodes = []

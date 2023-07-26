@@ -58,7 +58,9 @@ class KnowledgeGraphRetrieval:
         print("final_inter_relationships")
         print(len(final_inter_relationships))
         
-        query_nodes = selected_target_nodes + selected_source_nodes + selected_inter_nodes + additional_selected_nodes
+        query_nodes = selected_target_nodes + selected_source_nodes + selected_inter_nodes
+        if self.additional_entity_types is not None:
+            query_nodes += additional_selected_nodes
         query_nodes = (set(query_nodes))
         names_set = set(names_list)
         #query_nodes.update(final_path_nodes)
@@ -98,14 +100,14 @@ class KnowledgeGraphRetrieval:
 
         if final_inter_direct_relationships:
             target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, final_selected_inter_direct_nodes, query_nodes)
-            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 30, progress_callback)
+            final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations)//15, 50, progress_callback)
         else:
             final_inter_direct_relationships = []
             selected_inter_direct_nodes = []
 
             target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, query_nodes, query_nodes)
             if target_inter_relations:
-                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 30, progress_callback)
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 50, progress_callback)
             else:
                 final_inter_direct_inter_relationships = []
                 selected_inter_direct_inter_nodes = []

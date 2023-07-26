@@ -97,7 +97,7 @@ Entities: [extracted entity1, extracted entity2]
 Question: {input}
 ASSISTANT:"""
 
-Entity_Extraction_Template = """### Human: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format, use speach marks around the entity names:
+Entity_Extraction_Template = """### Human: Extract two entities from the question, do not try to answer the question. Include only the extracted entities as a python list of strings in your response. Your response should strictly follow this format:
 Entities: ["extracted entity1", "extracted entity2"]
 Question: {input}
 ### Assistant:
@@ -123,21 +123,20 @@ Question: {input}
 ### Response:
 """
 
-Additional_Entity_Extraction_Template = """### Human: Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing.:
-
-Your response should strictly follow this format if there are other biomedical entities in the question:
+Additional_Entity_Extraction_Template = """### Human: Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing. Do not use speachmarks or quotation marks around the entity names.
+Your response should strictly follow this format if there is only one other biomedical entity in the question:
 Additional Entities: ["entity"]
-
 Your response should strictly follow this format if there are no other biomedical entities in the question:
 Additional Entities: []
-
+Your response should strictly follow this format if there are multiple other biomedical entities in the question:
+Additional Entities: ["entity1", "entity2", "entity3"]
 Entities: {entities}
 Question: {input}
 ### Assistant:
 """
 
 Additional_Entity_Extraction_Template_Upstage = """### System:
-Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing. Do not use speachmarks or quotation marks around the entity names.
+Do not answer the question. Below is a list of entities and the question they were extracted from. If there are any other entities that may help answer the question, extract those additional entities from the question. If there are no other entities, do nothing.
 Your response should strictly follow this format if there is only one other biomedical entity in the question:
 Additional Entities: [entity]
 Your response should strictly follow this format if there are no other biomedical entities in the question:
@@ -152,7 +151,7 @@ Question: {input}
 """
 
 Additional_Entity_Extraction_Template_Alpaca = """### Instruction:
-Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities in the question, extract those additional entities from the question. If there are no other entities, do nothing.:
+Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities that may help answer the question, extract those additional entities from the question. If there are no other entities, do nothing.:
 
 Your response should strictly follow this format if there are other biomedical entities in the question:
 Additional Entities: ["entity"]
@@ -212,8 +211,6 @@ Context:
 {input}
 ### Assistant: """
 
-
-
 Graph_Answer_Gen_Template_Upstage = """### System: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
 
 ### User:
@@ -230,12 +227,32 @@ Context:
 {input}
 ### Assistant: """
 
+Graph_Answer_Gen_Template2_alpaca = """### Instruction: Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+Below is a question, your previous answer to the question, and some additional context. Using the additional context, improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Question: {question}
+Previous Answer: {previous_answer}
+Context: 
+{input}
+
+### Response: """
+
 Graph_Answer_Gen_Template3 = """### Human: Below is a question, your previous answer to the question, and some additional context. The additional context contains paths and relations related to similar entities to the entities in the question. Think of the paths and relations of the similar entities as predicted paths and relations of the enties in the question. This is based on the premise that similar drugs have similar mechanisms and similar diseases have similar pathologies, etc. Using the additional context, improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
 Question: {question}
 Previous Answer: {previous_answer}
 Context: 
 {input}
 ### Assistant: """
+
+Graph_Answer_Gen_Template3_alpaca = """### Instruction: Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+Below is a question, your previous answer to the question, and some additional context. The additional context contains paths and relations related to similar entities to the entities in the question. Think of the paths and relations of the similar entities as predicted paths and relations of the enties in the question. This is based on the premise that similar drugs have similar mechanisms and similar diseases have similar pathologies, etc. Using the additional context, improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Question: {question}
+Previous Answer: {previous_answer}
+Context: 
+{input}
+
+### Response: """
 
 Graph_Answer_Gen_Template_airo = """USER: BEGININPUT
 BEGINCONTEXT

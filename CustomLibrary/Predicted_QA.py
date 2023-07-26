@@ -16,7 +16,7 @@ from CustomLibrary.Graph_Utils import (
     select_paths, 
     select_paths2, 
 )
-from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template3
+from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template3, Graph_Answer_Gen_Template3_alpaca
 
 from CustomLibrary.OpenTargets import(
     query_predicted_disease_info,
@@ -25,7 +25,7 @@ from CustomLibrary.OpenTargets import(
 )
 
 def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, previous_answer, source, target, additional_list:Optional[List[str]]=None):
-    prompt = PromptTemplate(template=Graph_Answer_Gen_Template3, input_variables=["input", "question", "previous_answer"])
+    prompt = PromptTemplate(template=Graph_Answer_Gen_Template3_alpaca, input_variables=["input", "question", "previous_answer"])
     #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     gen_chain = LLMChain(llm=llm, prompt=prompt)
     source_rels = ', '.join(source_list)
@@ -150,9 +150,9 @@ class PredictedGrqphQA:
             # Remove duplicates by converting to sets
             query_nodes = set(query_nodes)
             graph_rels = set(graph_rels)
-            names_set = set(names_list)
+            #names_set = set(names_list)
             #query_nodes.update(final_path_nodes)
-            query_nodes = [name for name in query_nodes if name.lower() not in names_set]
+            #query_nodes = [name for name in query_nodes if name.lower() not in names_set]
             print("query nodes")
             print(len(query_nodes))
             print(query_nodes)
@@ -165,7 +165,7 @@ class PredictedGrqphQA:
             for node in query_nodes:
                 target_direct_relations, inter_direct_graph_rels, source_and_target_nodes1, direct_nodes = query_inter_relationships_direct1(self.graph, node)
                 if target_direct_relations:
-                    inter_direct_relationships, selected_nodes, inter_direct_unique_rels, selected_target_direct_paths = select_paths(target_direct_relations, question, 15, 2, progress_callback)
+                    inter_direct_relationships, selected_nodes, inter_direct_unique_rels, selected_target_direct_paths = select_paths(target_direct_relations, question, 15, 3, progress_callback)
                     og_target_direct_relations.update(inter_direct_relationships)
                     selected_inter_direct_nodes.update(selected_nodes)
                     inter_direct_unique_graph_rels.update(inter_direct_unique_rels)
@@ -188,14 +188,14 @@ class PredictedGrqphQA:
 
             if final_inter_direct_relationships:
                 target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, final_selected_inter_direct_nodes, query_nodes)
-                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, 15, 30, progress_callback)
+                final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, 15, 50, progress_callback)
             else:
                 final_inter_direct_relationships = []
                 selected_inter_direct_nodes = []
 
                 target_inter_relations, inter_direct_inter_unique_graph_rels, source_and_target_nodes2 = query_inter_relationships_between_direct(self.graph, query_nodes, query_nodes)
                 if target_inter_relations:
-                    final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 10, progress_callback)
+                    final_inter_direct_inter_relationships, selected_inter_direct_inter_nodes, inter_direct_inter_unique_rels = select_paths2(target_inter_relations, question, len(target_inter_relations), 50, progress_callback)
                 else:
                     final_inter_direct_inter_relationships = []
                     selected_inter_direct_inter_nodes = []
