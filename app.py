@@ -48,7 +48,7 @@ from CustomLibrary.Predicted_QA import PredictedGrqphQA
 logging.set_verbosity(logging.CRITICAL)
 @st.cache_data()
 def initialize_models():
-    model_url = "https://professor-response-encourages-gbp.trycloudflare.com/"
+    model_url = "https://cartridges-respective-greatly-usd.trycloudflare.com/"
     local_model_url = "http://127.0.0.1:5000/"
     llm = TextGen(model_url=model_url, max_new_tokens=2048)
     local_llm = TextGen(model_url=local_model_url, max_new_tokens=2048)
@@ -133,29 +133,33 @@ if question:
         # Query the knowledge graph
         graph_query = knowledge_graph._call(names_list, 
                                             question, 
-                                            generate_an_answer=True, 
-                                            related_interactions=True,
                                             progress_callback=progress_callback)
         
-        context = graph_query["result"]
-        all_rels = graph_query['all_rels']
+        if graph_query is None:
+            ckg_container = st.container()
+            with ckg_container:
+                with st.chat_message("assistant"):
+                    st.write("No results found for the given names.")
 
-        #rint(all_rels)
-        print(len(all_rels))
-        nodes = set()
+        else:
+            context = graph_query["result"]
+            all_rels = graph_query['all_rels']
+            #rint(all_rels)
+            print(len(all_rels))
+            nodes = set()
 
-        nodes, edges = parse_relationships_pyvis(all_rels)
+            nodes, edges = parse_relationships_pyvis(all_rels)
 
-        ckg_container = st.container()
-        with ckg_container:
-            with st.chat_message("assistant"):
-                st.write("CKG Network:")
-            with st.chat_message("assistant"):
-                create_and_display_network(nodes, edges, '#fff6fe', "CKG", names_list[0], names_list[1])
-            with st.chat_message("assistant"):
-                st.write("CKG_Answer:")
-            with st.chat_message("assistant"):
-                st.write(context)
+            ckg_container = st.container()
+            with ckg_container:
+                with st.chat_message("assistant"):
+                    st.write("CKG Network:")
+                with st.chat_message("assistant"):
+                    create_and_display_network(nodes, edges, '#fff6fe', "CKG", names_list[0], names_list[1])
+                with st.chat_message("assistant"):
+                    st.write("CKG_Answer:")
+                with st.chat_message("assistant"):
+                    st.write(context)
         
 #######################################################################################################################################################################################################################
         
@@ -181,7 +185,6 @@ if question:
         # Query the knowledge graph
         graph_query = Pharos._call(names_list, 
                                     question, 
-                                    generate_an_answer=True, 
                                     progress_callback=progress_callback,
                                     previous_answer=context)
         
@@ -230,7 +233,6 @@ if question:
         # Query the knowledge graph
         graph_query = Pharos._call(names_list,
                                                 question,
-                                                generate_an_answer=True,
                                                 progress_callback=progress_callback,
                                                 previous_answer=Pharos_Context)
 
@@ -278,7 +280,6 @@ if question:
         for response in PredictedQA._call(names_list, 
                                             question,
                                             previous_answer=OpenTargets_Context,
-                                            generate_an_answer=True, 
                                             progress_callback=progress_callback):
             
             final_context = response["result"]
