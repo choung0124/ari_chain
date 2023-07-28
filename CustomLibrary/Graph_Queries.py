@@ -1,22 +1,37 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from py2neo import Graph
-from CustomLibrary.Utils import get_similar_compounds
 from typing import Tuple, Set
 
+def remove_duplicates(paths):
+    seen = {}
+    result = []
+    for path in paths:
+        # Convert path to a tuple so it can be added to a dict
+        path_tuple = tuple(path)
+        if path_tuple not in seen:
+            result.append(path)
+            seen[path_tuple] = True
+    return result
+
 def get_node_label(graph: Graph, node_name: str) -> str:
-    query = f"""
-    MATCH (node)
-    WHERE toLower(node.name) = toLower("{node_name}")
-    RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName
+    query = """
+    CALL apoc.cypher.runTimeboxed(
+        "MATCH (node)
+        WHERE toLower(node.name) = toLower($nodeName)
+        RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName",
+        {nodeName: $nodeName},
+        60000
+    ) YIELD value
+    RETURN value.FirstLabel, value.NodeName
     """
-    result = graph.run(query).data()
+    result = graph.run(query, nodeName=node_name).data()
     if result:
         print(query)
-        return result[0]['FirstLabel'], result[0]['NodeName']
+        return result[0]['value.FirstLabel'], result[0]['value.NodeName']
     else:
         return None, None
-    
+
 def get_node_labels(graph: Graph, node_names: List[str]) -> Dict[str, str]:
     query = """
     UNWIND $node_names AS node_name
@@ -26,48 +41,6 @@ def get_node_labels(graph: Graph, node_names: List[str]) -> Dict[str, str]:
     """
     results = graph.run(query, node_names=node_names).data()
     return {result['NodeName']: result['FirstLabel'] for result in results}
-
-
-def get_source_and_target_paths(graph: Graph, names: List[str]) -> Tuple[List[Relationship], List[Relationship]]:
-    source_label, source_name = get_node_label(graph, names[0])
-    target_label, target_name = get_node_label(graph, names[1])
-
-    query_source = f"""
-    MATCH path=(source:{source_label})-[*1..2]->(node)
-    WHERE source.name = "{source_name}"
-    WITH relationships(path) AS rels, nodes(path) AS nodes
-    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
-    """
-
-    query_target = f"""
-    MATCH path=(target:{target_label})-[*1..2]->(node)
-    WHERE target.name = "{target_name}"
-    WITH relationships(path) AS rels, nodes(path) AS nodes
-    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
-    """
-
-    print(query_source)
-    print(query_target)
-    source_results = list(graph.run(query_source))
-    target_results = list(graph.run(query_target))
-    source_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in source_results]
-    target_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in target_results]
-    print("source paths:")
-    print(len(source_paths))
-    print("target paths")
-    print(len(target_paths))
-    source_relationships = [construct_relationship_string(record['path_nodes'], record['path_relationships']) for record in source_results]
-    target_relationships = [construct_relationship_string(record['path_nodes'], record['path_relationships']) for record in target_results]
-    
-    with open("sample.txt", "w") as file:
-        source_rels_to_write = [construct_path_string(record['path_nodes'], record['path_relationships']) for record in source_results]
-        for string in source_rels_to_write:
-            file.write(string + '\n')
-        target_rels_to_write = [construct_path_string(record['path_nodes'], record['path_relationships']) for record in target_results]
-        for string in target_rels_to_write:
-            file.write(string + '\n')
-    
-    return source_paths, target_paths, source_relationships, target_relationships
 
 def construct_path_string(nodes: List[str], relationships: List[str]) -> str:
     path_elements = []
@@ -87,136 +60,117 @@ def construct_relationship_string(nodes: List[str], relationships: List[str]) ->
         path_elements.append(f"{nodes[i]} -> {relationships[i]} -> {nodes[i + 1]}")
     return ", ".join(path_elements)
 
-def find_shortest_paths(graph: Graph, names: List[str], entity_types: Dict[str, str], repeat: bool) -> List[Dict[str, Any]]:
+def get_source_and_target_paths(graph: Graph, names: List[str]) -> Tuple[List[Relationship], List[Relationship]]:
     source_label, source_name = get_node_label(graph, names[0])
     target_label, target_name = get_node_label(graph, names[1])
+
+    query_source = f"""
+    MATCH path=(source:{source_label})-[rel*1..2]->(node)
+    WHERE source.name = "{source_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    UNION
+    MATCH path=(node)-[rel*1..2]->(source:{source_label})
+    WHERE source.name = "{source_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    LIMIT 50000
+    """
+
+    query_target = f"""
+    MATCH path=(source:{target_label})-[rel*1..2]->(node)
+    WHERE source.name = "{target_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    UNION
+    MATCH path=(node)-[rel*1..2]->(source:{target_label})
+    WHERE source.name = "{target_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    LIMIT 50000
+    """
+    print(query_source)
+    print(query_target)
+    source_results = list(graph.run(query_source))
+    target_results = list(graph.run(query_target))
+    source_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in source_results]
+    target_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in target_results]
+    print("source paths:")
+    print(len(source_paths))
+    print("target paths")
+    print(len(target_paths))
+
+    return source_paths, target_paths
+
+def find_shortest_paths(graph: Graph, names: List[str]) -> List[Dict[str, Any]]:
+    source_label, source_name = get_node_label(graph, names[0])
+    target_label, target_name = get_node_label(graph, names[1])
+
+    if source_label is None or target_label is None:
+        return None
+    
     names_conditions = f'WHERE source.name = "{source_name}" AND target.name = "{target_name}"'
     query = f"""
-    MATCH (source:{source_label }), (target:{target_label})
+    MATCH (source:{source_label}), (target:{target_label})
     {names_conditions}
     MATCH p = allShortestPaths((source)-[*]-(target))
     WITH p, [rel IN relationships(p) | type(rel)] AS path_relationships
     WITH relationships(p) AS rels, nodes(p) AS nodes, path_relationships
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    LIMIT 50000
     """
-
     print(query)
     result = graph.run(query)
 
-    if not result:
-        source_entity_type = entity_types[f"{names[0]}"]
-        target_entity_type = entity_types[f"{names[1]}"]
-        if source_entity_type == 'Drug':
-            source_test_query = f"""
-            MATCH (p:Drug)
-            WHERE p.name = "{names[0]}"
-            RETURN p
-            """
-            source_test_result = graph.run(source_test_query)
-            if not source_test_result:
-                similar_compounds = get_similar_compounds({names[0]}, 20)
-                for compound in similar_compounds[1:]:
-                    source_similar_compounds_test_query = f"""
-                    MATCH (p:Drug)
-                    WHERE p.name = "{compound}"
-                    RETURN p
-                    """
-                    print(source_similar_compounds_test_query)           # start from index 1 to skip the first similar compound
-                    source_similar_compounds_test_result = graph.run(source_similar_compounds_test_query)
-                    if source_similar_compounds_test_result:
-                        names[0] = compound
-                        break
-
-        if target_entity_type == 'Drug':
-            target_test_query = f"""
-            MATCH (p:Drug)
-            WHERE p.name = "{names[1]}"
-            RETURN p
-            """            
-            target_test_result = graph.run(target_test_query)
-            if not target_test_result:
-                similar_compounds = get_similar_compounds({names[1]}, 20)
-                for compound in similar_compounds[1:]:  # start from index 1 to skip the first similar compound
-                    target_similar_compounds_test_query = f"""
-                    MATCH (p:Drug)
-                    WHERE p.name = "{compound}"
-                    RETURN p
-                    """
-                    print(target_similar_compounds_test_query)             # start from index 1 to skip the first similar compound
-                    target_similar_compounds_test_result = graph.run(target_similar_compounds_test_query)
-                    if target_similar_compounds_test_result:
-                        names[1] = compound
-                        break
-
-    result = graph.run(query)
-    #if not result and source_entity_type == "Drug":
     # Initialize a set to store unique associated genes
-    unique_source_paths = []
-    unique_target_paths = []
-    unique_graph_rels = set()
+    final_source_paths = []
+    final_target_paths = []
 
     unique_rel_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result]
+    source_paths, target_paths = get_source_and_target_paths(graph, names)
+
+    for path in source_paths:
+        final_source_paths.append(path)
+    # Construct and add the target path relationship strings to the list
+    for path in target_paths:
+        final_target_paths.append(path)
+    # Convert unique_relationships set to list
+
+    return unique_rel_paths, final_target_paths, final_source_paths
+
+def query_direct(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
+    node_label, node_name = get_node_label(graph, node)
+    paths_list = []
+
+    query = f"""
+    MATCH path=(source:{node_label})-[rel*1..2]->(node)
+    WHERE source.name = "{node_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    UNION
+    MATCH path=(node)-[rel*1..2]->(source:{node_label})
+    WHERE source.name = "{node_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    LIMIT 50000
+    """
+    result = list(graph.run(query, node=node))
+    print(query)
 
     for record in result:
         path_nodes = record['path_nodes']
         path_relationships = record['path_relationships']
-        rel_string = construct_relationship_string(path_nodes, path_relationships)
-        unique_graph_rels.add(rel_string)
-    
-    source_paths, target_paths, source_relationships, target_relationships = get_source_and_target_paths(graph, names)
+        paths_list.append({'nodes': path_nodes, 'relationships': path_relationships})
 
-    for path in source_paths:
-        unique_source_paths.append(path)
-    # Construct and add the target path relationship strings to the list
-    for path in target_paths:
-        unique_target_paths.append(path)
+    return paths_list
 
-    for rel in source_relationships:
-        unique_graph_rels.add(rel)
-
-    for rel in target_relationships:
-        unique_graph_rels.add(rel)
-
-    # Convert unique_relationships set to list
-    unique_source_paths_list = list(unique_source_paths)
-    unique_target_paths_list = list(unique_target_paths)
-    unique_graph_rels_list = list(unique_graph_rels)
-
-    return unique_rel_paths, unique_target_paths_list, unique_source_paths_list, unique_graph_rels_list
-
-def query_inter_relationships_direct1(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
-    node_label, node_name = get_node_label(graph, node)
-    all_nodes = set()
-    graph_strings = set()
-    relationships_direct = set()
-    og_relationships_direct_list = []
-    direct_nodes = []
-
-    direct_relationships_query = f"""
-    MATCH path=(n:{node_label})-[r]-(m)
-    WHERE n.name = "{node_name}" AND n.name IS NOT NULL
-    WITH nodes(path) AS nodes, relationships(path) AS rels
-    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
-    """
-    result_direct = list(graph.run(direct_relationships_query, node=node))
-    direct_nodes.extend([node for record in result_direct for node in record['path_nodes']])
-    print(direct_relationships_query)
-
-    for record in result_direct:
-        path_nodes = record['path_nodes']
-        path_relationships = record['path_relationships']
-        rel_string = construct_path_string(path_nodes, path_relationships)
-        graph_string = construct_relationship_string(path_nodes, path_relationships)
-        graph_strings.add(graph_string)
-        relationships_direct.add(rel_string)
-        all_nodes.update(record['path_nodes'])
-        og_relationships_direct_list.append({'nodes': path_nodes, 'relationships': path_relationships})
-
-    graph_strings_list = list(graph_strings)
-    og_relationships_direct_list = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result_direct]
-    return og_relationships_direct_list, graph_strings_list, all_nodes, direct_nodes
-
-def query_inter_relationships_between_direct(graph: Graph, direct_nodes, nodes:List[str]) -> str:
+def query_between_direct(graph: Graph, direct_nodes, nodes:List[str]) -> str:
     all_node_names = list(nodes) + direct_nodes
     node_labels = get_node_labels(graph, all_node_names)
     unique_labels = list(set(node_labels.values()))
@@ -237,17 +191,8 @@ def query_inter_relationships_between_direct(graph: Graph, direct_nodes, nodes:L
     result_inter_direct = list(graph.run(inter_between_direct_query, **query_parameters_2))
     print(inter_between_direct_query)
 
-    all_nodes = set()
-    graph_strings = set()
-
-    for record in result_inter_direct:
-        path_nodes = record['path_nodes']
-        path_relationships = record['path_relationships']
-        graph_string = construct_relationship_string(path_nodes, path_relationships)
-        graph_strings.add(graph_string)
-        all_nodes.update(record['path_nodes'])
-    relationships_inter_direct_list = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result_inter_direct]
-    graph_strings_list = list(graph_strings)
+    paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in result_inter_direct]
     print("number of inter direct relations:")
-    print(len(relationships_inter_direct_list))
-    return relationships_inter_direct_list, graph_strings_list, all_nodes
+    print(len(paths))
+
+    return paths

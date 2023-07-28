@@ -8,7 +8,7 @@ import numpy as np
 from CustomLibrary.Graph_Queries import (
     find_shortest_paths, 
     query_direct, 
-    query_between_direct
+    query_inter_relationships_between_direct
 )
 from CustomLibrary.Graph_Utils import (
     select_paths2, 
@@ -24,17 +24,13 @@ class KnowledgeGraphRetrieval:
 
     def _call(self, names_list, question, progress_callback=None):
 
-        result = find_shortest_paths(self.graph, 
-                                        names_list)
-        
-        if result is None:
-            return None
-        
         (source_to_target_paths, 
          from_target_paths, 
-         from_source_paths) = result 
+         from_source_paths, ) = find_shortest_paths(self.graph, 
+                                                  names_list, 
+                                                  self.entity_types, 
+                                                  repeat=True)
         
-
         (selected_from_target_paths, 
          selected_from_target_nodes, 
          selected_from_target_graph_rels) = select_paths2(from_target_paths, 
@@ -69,7 +65,7 @@ class KnowledgeGraphRetrieval:
         print(len(selected_source_to_target_paths))
 
 
-        if self.additional_entity_types is not None:
+        if self.extraEntityTypes is not None:
             additional_nodes = set()
             additional_paths = set()
             additional_graph_rels = set()
@@ -91,7 +87,7 @@ class KnowledgeGraphRetrieval:
 
         query_nodes = selected_from_target_nodes + selected_from_source_nodes + selected_source_to_target_nodes
         
-        if self.additional_entity_types is not None:
+        if self.extraEntityTypes is not None:
             query_nodes += list(additional_nodes)
 
         query_nodes = (set(query_nodes))
@@ -131,7 +127,7 @@ class KnowledgeGraphRetrieval:
         print("number of unique inter_direct_relationships:")
         print(len(mid_direct_paths))
 
-        mid_inter_paths = query_between_direct(self.graph, 
+        mid_inter_paths = query_inter_relationships_between_direct(self.graph, 
                                                                    list(mid_direct_nodes), 
                                                                    query_nodes)
         

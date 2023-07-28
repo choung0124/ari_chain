@@ -8,12 +8,13 @@ from CustomLibrary.Custom_Prompts import (
 )
 from sentence_transformers import SentenceTransformer
 from CustomLibrary.Graph_Queries import construct_path_string, construct_relationship_string
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
 from langchain.vectorstores import Chroma, FAISS
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 from langchain.embeddings import HuggingFaceEmbeddings
 from typing import List, Optional
+import gc
 
 def generate_answer(llm, relationships_list, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, additional_rels:Optional[List[str]]=None):
     prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
@@ -91,7 +92,7 @@ def cluster_and_select_med(paths_list, n_cluster, progress_callback=None):
     scaled_features = scaler.fit_transform(embeddings_array)
 
     n_clusters = n_cluster
-    kmeans = KMeans(n_clusters=n_clusters, init="random", n_init=10, max_iter=300, random_state=42)
+    kmeans = MiniBatchKMeans(n_clusters=n_clusters, init="random", n_init=10, max_iter=300, random_state=42)
     kmeans.fit(scaled_features)
 
     cluster_labels = kmeans.labels_
@@ -109,6 +110,7 @@ def cluster_and_select_med(paths_list, n_cluster, progress_callback=None):
 
 def embed_and_select_med(paths_list, question, n_embed):
     sentences_list = [construct_path_string(path['nodes'], path['relationships']) for path in paths_list]
+
     hf = HuggingFaceEmbeddings(
     model_name='pritamdeka/S-Bluebert-snli-multinli-stsb',
     model_kwargs={'device': 'cuda'},
@@ -120,6 +122,7 @@ def embed_and_select_med(paths_list, question, n_embed):
 
     final_result = [doc.page_content for doc in docs]
     del db, retriever, docs, hf, sentences_list
+    gc.collect()
     print("done embedding")
     return final_result
 
@@ -144,7 +147,7 @@ def select_paths(paths, question, n_cluster, n_embed, progress_callback):
 
 def select_paths2(paths, question, n_cluster, n_embed, progress_callback):
     if len(paths) < n_cluster:
-        n_cluster = len(paths)
+        n_cluster = len(paths)  
     clustered_paths = cluster_and_select_med(paths, n_cluster, progress_callback)
     selected_paths_stage1 = [path for path in paths if construct_path_string(path['nodes'], path['relationships']) in clustered_paths and None not in path['nodes']]
 
@@ -194,7 +197,7 @@ def cluster_and_select_pharos(paths_list, n_cluster, progress_callback=None):
     scaled_features = scaler.fit_transform(embeddings_array)
 
     n_clusters = n_cluster
-    kmeans = KMeans(n_clusters=n_clusters, init="random", n_init=10, max_iter=300, random_state=42)
+    kmeans = MiniBatchKMeans(n_clusters=n_clusters, init="random", n_init=10, max_iter=300, random_state=42)
     kmeans.fit(scaled_features)
 
     cluster_labels = kmeans.labels_
@@ -232,7 +235,7 @@ def embed_and_select_med_pharos(paths_list, question, n_embed):
     final_result = [doc.page_content for doc in docs]
 
     del db, retriever, docs, hf, sentences_list
-
+    gc.collect()
     print("done embedding")
 
     return final_result
@@ -255,4 +258,3 @@ def select_paths_pharos(paths, question, n_cluster, n_embed, progress_callback):
     unique_rels_list = [construct_relationship_string(path['nodes'], path['relationships']) for path in selected_paths_stage2]
     unique_rels_list = list(set(unique_rels_list))
     return paths_list, selected_nodes, unique_rels_list, selected_paths_stage2
-
