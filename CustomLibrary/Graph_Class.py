@@ -8,13 +8,14 @@ import numpy as np
 from CustomLibrary.Graph_Queries import (
     find_shortest_paths, 
     query_direct, 
-    query_between_direct
+    query_between_direct,
+    query_direct_no_lower
 )
 from CustomLibrary.Graph_Utils import (
     select_paths2, 
     generate_answer, 
 )
-
+import gc
 class KnowledgeGraphRetrieval:
     def __init__(self, uri, username, password, llm, entity_types, additional_entity_types=None):
         self.graph = Graph(uri, auth=(username, password))
@@ -107,7 +108,7 @@ class KnowledgeGraphRetrieval:
         mid_direct_graph_rels = set()
         
         for node in query_nodes:
-            paths = query_direct(self.graph, node)
+            paths = query_direct_no_lower(self.graph, node)
             if paths:
                 (selected_paths, 
                  selected_nodes, 
@@ -120,10 +121,11 @@ class KnowledgeGraphRetrieval:
                 mid_direct_paths.update(selected_paths)
                 mid_direct_nodes.update(selected_nodes)
                 mid_direct_graph_rels.update(selected_graph_rels)
-                
                 print("success")
-                print(len(mid_direct_paths))
-                print(mid_direct_paths)
+                print(len(selected_paths))
+                print(selected_paths)
+                del paths, selected_paths, selected_nodes, selected_graph_rels
+                gc.collect()
             else:
                 print("skipping")
                 continue
@@ -132,8 +134,8 @@ class KnowledgeGraphRetrieval:
         print(len(mid_direct_paths))
 
         mid_inter_paths = query_between_direct(self.graph, 
-                                                                   list(mid_direct_nodes), 
-                                                                   query_nodes)
+                                                list(mid_direct_nodes), 
+                                                query_nodes)
         
         (selected_mid_inter_paths, 
          selected_mid_inter_nodes, 

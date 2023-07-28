@@ -3,23 +3,33 @@ from typing import Any, Dict, List, Optional
 from py2neo import Graph
 from typing import Tuple, Set
 
-def remove_duplicates(paths):
-    seen = {}
-    result = []
-    for path in paths:
-        # Convert path to a tuple so it can be added to a dict
-        path_tuple = tuple(path)
-        if path_tuple not in seen:
-            result.append(path)
-            seen[path_tuple] = True
-    return result
 
 def get_node_label(graph: Graph, node_name: str) -> str:
     query = """
     CALL apoc.cypher.runTimeboxed(
-        "MATCH (node)
+        "PROFILE MATCH (node)
         WHERE toLower(node.name) = toLower($nodeName)
-        RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName",
+        RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName
+        LIMIT 1",
+        {nodeName: $nodeName},
+        60000
+    ) YIELD value
+    RETURN value.FirstLabel, value.NodeName
+    """
+    result = graph.run(query, nodeName=node_name).data()
+    if result:
+        print(query)
+        return result[0]['value.FirstLabel'], result[0]['value.NodeName']
+    else:
+        return None, None
+
+def get_node_label_non_lower(graph: Graph, node_name: str) -> str:
+    query = """
+    CALL apoc.cypher.runTimeboxed(
+        "PROFILE MATCH (node)
+        WHERE node.name = $nodeName
+        RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName
+        LIMIT 1",
         {nodeName: $nodeName},
         60000
     ) YIELD value
@@ -144,6 +154,34 @@ def find_shortest_paths(graph: Graph, names: List[str]) -> List[Dict[str, Any]]:
 
 def query_direct(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
     node_label, node_name = get_node_label(graph, node)
+    paths_list = []
+
+    query = f"""
+    MATCH path=(source:{node_label})-[rel*1..2]->(node)
+    WHERE source.name = "{node_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    UNION
+    MATCH path=(node)-[rel*1..2]->(source:{node_label})
+    WHERE source.name = "{node_name}" AND node IS NOT NULL
+    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
+    WHERE NONE(n IN nodes WHERE n IS NULL)
+    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
+    LIMIT 50000
+    """
+    result = list(graph.run(query, node=node))
+    print(query)
+
+    for record in result:
+        path_nodes = record['path_nodes']
+        path_relationships = record['path_relationships']
+        paths_list.append({'nodes': path_nodes, 'relationships': path_relationships})
+
+    return paths_list
+
+def query_direct_no_lower(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
+    node_label, node_name = get_node_label_non_lower(graph, node)
     paths_list = []
 
     query = f"""
