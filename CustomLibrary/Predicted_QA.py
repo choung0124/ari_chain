@@ -214,15 +214,16 @@ class PredictedGrqphQA:
             print("final_inter_direct_inter_relationships")
             print(len(selected_mid_inter_paths))
 
-            all_graph_rels = (selected_mid_inter_graph_rels + 
-                            mid_direct_graph_rels + 
-                            source_rels + 
-                            target_rels)
+            all_graph_rels = set()
+            all_graph_rels.update(selected_mid_inter_graph_rels)
+            all_graph_rels.update(mid_direct_graph_rels) 
+            all_graph_rels.update(source_rels) 
+            all_graph_rels.update(target_rels)
             
             if self.additional_entity_types is not None:
-                all_graph_rels += additional_rels
+                all_graph_rels.update(additional_rels)
 
-            all_graph_rels = list(set(all_graph_rels))
+            all_graph_rels = list(all_graph_rels)
 
             print("all_graph_rels")
             print(len(all_graph_rels))
@@ -233,10 +234,10 @@ class PredictedGrqphQA:
             params = {
                 "llm": self.llm, 
                 "question": question,
-                "source_list": source_paths,
-                "target_list": target_paths,
-                "inter_direct_list": mid_direct_paths,
-                "inter_direct_inter": mid_inter_paths,
+                "source_list": list(source_paths),
+                "target_list": list(target_paths),
+                "inter_direct_list": list(mid_direct_paths),
+                "inter_direct_inter": list(selected_mid_inter_paths),
                 "source": names_list[0],
                 "target": names_list[1],
                 "previous_answer": previous_answer

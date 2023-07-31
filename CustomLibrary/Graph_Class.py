@@ -117,7 +117,7 @@ class KnowledgeGraphRetrieval:
                  selected_nodes, 
                  selected_graph_rels) = select_paths2(paths, 
                                                       question, 
-                                                      len(paths)//15, 
+                                                      len(paths)//3, 
                                                       3, 
                                                       progress_callback)
                 
@@ -152,16 +152,17 @@ class KnowledgeGraphRetrieval:
         print("final_inter_direct_inter_relationships")
         print(len(selected_mid_inter_paths))
 
-        all_graph_rels = (selected_mid_inter_graph_rels + 
-                          mid_direct_graph_rels + 
-                          selected_source_to_target_graph_rels + 
-                          selected_from_source_graph_rels + 
-                          selected_from_target_graph_rels)
+        all_graph_rels = set()
+        all_graph_rels.update(selected_mid_inter_graph_rels)
+        all_graph_rels.update(mid_direct_graph_rels)
+        all_graph_rels.update(selected_source_to_target_graph_rels)
+        all_graph_rels.update(selected_from_source_graph_rels) 
+        all_graph_rels.update(selected_from_target_graph_rels)
+
         if self.additional_entity_types is not None:
-            all_graph_rels += additional_graph_rels
+            all_graph_rels.update(additional_graph_rels)
 
-        all_graph_rels = list(set(all_graph_rels))
-
+        all_graph_rels = list(all_graph_rels)
         print("all_graph_rels")
         print(len(all_graph_rels))
 
@@ -169,12 +170,12 @@ class KnowledgeGraphRetrieval:
         
         params = {
             "llm": self.llm, 
-            "relationships_list": source_to_target_paths,
+            "relationships_list": list(selected_source_to_target_paths),
             "question": question,
-            "source_list": from_source_paths,
-            "target_list": from_target_paths,
-            "inter_direct_list": mid_direct_paths,
-            "inter_direct_inter": mid_inter_paths,
+            "source_list": list(selected_from_source_paths),
+            "target_list": list(selected_from_target_paths),
+            "inter_direct_list": list(mid_direct_paths),
+            "inter_direct_inter": list(selected_mid_inter_paths),
             "source": names_list[0],
             "target": names_list[1]
         }

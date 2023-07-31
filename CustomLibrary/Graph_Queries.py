@@ -149,13 +149,13 @@ def query_direct(graph: Graph, node:str, node_label:Optional[str]=None) -> List[
 
     paths_list = []
     query = f"""
-    MATCH path=(source:{node_label})-[rel*1..2]->(node)
+    MATCH path=(source:{node_label})-[rel*1..1]->(node)
     WHERE source.name = "{node_name}" AND node IS NOT NULL
     WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
     WHERE NONE(n IN nodes WHERE n IS NULL)
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
     UNION
-    MATCH path=(node)-[rel*1..2]->(source:{node_label})
+    MATCH path=(node)-[rel*1..1]->(source:{node_label})
     WHERE source.name = "{node_name}" AND node IS NOT NULL
     WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
     WHERE NONE(n IN nodes WHERE n IS NULL)

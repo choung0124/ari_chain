@@ -162,3 +162,5 @@ def create_and_display_network(nodes, edges, back_color, name, source, target):
         f'<a href="file://{os.path.realpath(f"{name}network.html")}" target="_blank">Open Network in Full Size</a>', 
         unsafe_allow_html=True
     )
+
+
