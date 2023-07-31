@@ -6,41 +6,29 @@ from typing import Tuple, Set
 
 def get_node_label(graph: Graph, node_name: str) -> str:
     query = """
-    CALL apoc.cypher.runTimeboxed(
-        "PROFILE MATCH (node)
-        WHERE toLower(node.name) = toLower($nodeName)
-        RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName
-        LIMIT 1",
-        {nodeName: $nodeName},
-        60000
-    ) YIELD value
-    RETURN value.FirstLabel, value.NodeName
+    MATCH (node)
+    WHERE toLower(node.name) = toLower($nodeName)
+    RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName
+    LIMIT 1
     """
     result = graph.run(query, nodeName=node_name).data()
     if result:
         print(query)
-        return result[0]['value.FirstLabel'], result[0]['value.NodeName']
+        return result[0]['FirstLabel'], result[0]['NodeName']
     else:
         return None, None
 
-def get_node_label_non_lower(graph: Graph, node_name: str) -> str:
+def get_node_labels_dict(graph: Graph, node_names: List[str]) -> Dict[str, str]:
     query = """
-    CALL apoc.cypher.runTimeboxed(
-        "PROFILE MATCH (node)
-        WHERE node.name = $nodeName
-        RETURN head(labels(node)) AS FirstLabel, node.name AS NodeName
-        LIMIT 1",
-        {nodeName: $nodeName},
-        60000
-    ) YIELD value
-    RETURN value.FirstLabel, value.NodeName
+    UNWIND $nodeNames AS nodeName
+    MATCH (node)
+    WHERE toLower(node.name) = toLower(nodeName)
+    RETURN node.name AS NodeName, head(labels(node)) AS FirstLabel
     """
-    result = graph.run(query, nodeName=node_name).data()
-    if result:
-        print(query)
-        return result[0]['value.FirstLabel'], result[0]['value.NodeName']
-    else:
-        return None, None
+    results = graph.run(query, nodeNames=node_names).data()
+    print(query)
+    return {result['NodeName']: result['FirstLabel'] for result in results}
+
 
 def get_node_labels(graph: Graph, node_names: List[str]) -> Dict[str, str]:
     query = """
@@ -105,10 +93,11 @@ def get_source_and_target_paths(graph: Graph, names: List[str]) -> Tuple[List[Re
     """
     print(query_source)
     print(query_target)
-    source_results = list(graph.run(query_source))
-    target_results = list(graph.run(query_target))
+    source_results = graph.run(query_source)
+    target_results = graph.run(query_target)
     source_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in source_results]
     target_paths = [{'nodes': record['path_nodes'], 'relationships': record['path_relationships']} for record in target_results]
+
     print("source paths:")
     print(len(source_paths))
     print("target paths")
@@ -152,10 +141,13 @@ def find_shortest_paths(graph: Graph, names: List[str]) -> List[Dict[str, Any]]:
 
     return unique_rel_paths, final_target_paths, final_source_paths
 
-def query_direct(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
-    node_label, node_name = get_node_label(graph, node)
-    paths_list = []
+def query_direct(graph: Graph, node:str, node_label:Optional[str]=None) -> List[Dict[str, Any]]:
+    if not node_label:
+        node_label, node_name = get_node_label(graph, node)
+    else:
+        node_name = node
 
+    paths_list = []
     query = f"""
     MATCH path=(source:{node_label})-[rel*1..2]->(node)
     WHERE source.name = "{node_name}" AND node IS NOT NULL
@@ -170,7 +162,7 @@ def query_direct(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str
     RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
     LIMIT 50000
     """
-    result = list(graph.run(query, node=node))
+    result = graph.run(query)
     print(query)
 
     for record in result:
@@ -180,33 +172,6 @@ def query_direct(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str
 
     return paths_list
 
-def query_direct_no_lower(graph: Graph, node:str) -> Tuple[List[Dict[str, Any]], List[str], List[str], Set[str], List[str]]:
-    node_label, node_name = get_node_label_non_lower(graph, node)
-    paths_list = []
-
-    query = f"""
-    MATCH path=(source:{node_label})-[rel*1..2]->(node)
-    WHERE source.name = "{node_name}" AND node IS NOT NULL
-    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
-    WHERE NONE(n IN nodes WHERE n IS NULL)
-    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
-    UNION
-    MATCH path=(node)-[rel*1..2]->(source:{node_label})
-    WHERE source.name = "{node_name}" AND node IS NOT NULL
-    WITH DISTINCT path, relationships(path) AS rels, nodes(path) AS nodes
-    WHERE NONE(n IN nodes WHERE n IS NULL)
-    RETURN [node IN nodes | node.name] AS path_nodes, [rel IN rels | type(rel)] AS path_relationships
-    LIMIT 50000
-    """
-    result = list(graph.run(query, node=node))
-    print(query)
-
-    for record in result:
-        path_nodes = record['path_nodes']
-        path_relationships = record['path_relationships']
-        paths_list.append({'nodes': path_nodes, 'relationships': path_relationships})
-
-    return paths_list
 
 def query_between_direct(graph: Graph, direct_nodes, nodes:List[str]) -> str:
     all_node_names = list(nodes) + direct_nodes

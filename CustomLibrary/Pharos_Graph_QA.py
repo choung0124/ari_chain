@@ -6,15 +6,20 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from py2neo import Graph
 import numpy as np
 from langchain.prompts import PromptTemplate
+import gc
 
 from CustomLibrary.Graph_Queries import (
     query_direct, 
     query_between_direct,
-    get_node_label)
+    get_node_label,
+    get_node_labels_dict
+    )
+
 from CustomLibrary.Graph_Utils import (
     select_paths, 
     select_paths2, 
 )
+
 from CustomLibrary.Custom_Prompts import Graph_Answer_Gen_Template2, Graph_Answer_Gen_Template2_alpaca
 
 from CustomLibrary.Pharos_Queries import (
@@ -101,8 +106,11 @@ class PharosGraphQA:
         mid_direct_nodes = set()
         mid_direct_graph_rels = set()
 
+        node_labels = get_node_labels_dict(self.graph, query_nodes)
         for node in query_nodes:
-            paths = query_direct(self.graph, node)
+            node_label = node_labels.get(node)
+            if node_label is not None:
+                paths = query_direct(self.graph, node, node_label)
             if paths:
                 (selected_paths, 
                  selected_nodes, 
@@ -115,10 +123,11 @@ class PharosGraphQA:
                 mid_direct_paths.update(selected_paths)
                 mid_direct_nodes.update(selected_nodes)
                 mid_direct_graph_rels.update(selected_graph_rels)
-                
                 print("success")
-                print(len(mid_direct_paths))
-                print(mid_direct_paths)
+                print(len(selected_paths))
+                print(selected_paths)
+                del paths, selected_paths, selected_nodes, selected_graph_rels
+                gc.collect()
             else:
                 print("skipping")
                 continue

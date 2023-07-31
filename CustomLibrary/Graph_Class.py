@@ -9,7 +9,7 @@ from CustomLibrary.Graph_Queries import (
     find_shortest_paths, 
     query_direct, 
     query_between_direct,
-    query_direct_no_lower
+    get_node_labels_dict,
 )
 from CustomLibrary.Graph_Utils import (
     select_paths2, 
@@ -107,8 +107,11 @@ class KnowledgeGraphRetrieval:
         mid_direct_nodes = set()
         mid_direct_graph_rels = set()
         
+        node_labels = get_node_labels_dict(self.graph, query_nodes)
         for node in query_nodes:
-            paths = query_direct_no_lower(self.graph, node)
+            node_label = node_labels.get(node)
+            if node_label is not None:
+                paths = query_direct(self.graph, node, node_label)
             if paths:
                 (selected_paths, 
                  selected_nodes, 
