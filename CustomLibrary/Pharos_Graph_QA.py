@@ -59,29 +59,37 @@ class PharosGraphQA:
     def _call(self, names_list, question, previous_answer, progress_callback=None):
         
         entities_list = list(self.entity_types.items())
-
         # The first entity is the source entity
         source_entity_name, source_entity_type = entities_list[0]
-
         # The second entity is the target entity
         target_entity_name, target_entity_type = entities_list[1]
 
         if source_entity_type == "Disease":
-            from_source_paths, from_source_nodes = disease_query(source_entity_name, question)
-        if source_entity_type == "Drug":
-            from_source_paths, from_source_nodes= ligand_query(source_entity_name, question)
-        if source_entity_type == "Gene":
-            from_source_paths, from_source_nodes = target_query(source_entity_name, question)
+            source_result = disease_query(source_entity_name, question)
+        elif source_entity_type == "Drug" or "Food" or "Metabolite":
+            source_result = ligand_query(source_entity_name, question)
+        elif source_entity_type == "Gene":
+            source_result = target_query(source_entity_name, question)
+
+        if source_result is not None:
+            from_source_paths, from_source_nodes = result
+        else:
+            return None
 
         if target_entity_type == "Disease":
-            from_target_paths, from_target_nodes = disease_query(target_entity_name, question)
-        if target_entity_type == "Drug":
-            from_target_paths, from_target_nodes = ligand_query(target_entity_name, question)
-        if target_entity_type == "Gene":
-            from_target_paths, from_target_nodes = target_query(target_entity_name, question)
+            target_result = disease_query(target_entity_name, question)
+        elif target_entity_type == "Drug" or "Food" or "Metabolite":
+            target_result = ligand_query(target_entity_name, question)
+        elif target_entity_type == "Gene":
+            target_result = target_query(target_entity_name, question)
 
+        if target_result is not None:
+            from_target_paths, from_target_nodes = result
+        else:
+            return None
+            
         query_nodes = from_source_nodes + from_target_nodes
-        query_nodes = set(query_nodes)
+        query_nodes = set(list(query_nodes))
 
         if self.additional_entity_types is not None:
             additional_paths = set()
@@ -105,21 +113,22 @@ class PharosGraphQA:
         mid_direct_paths = set()
         mid_direct_nodes = set()
         mid_direct_graph_rels = set()
-
+        query_nodes = list(query_nodes)
         node_labels = get_node_labels_dict(self.graph, query_nodes)
         for node in query_nodes:
+            paths = []  # Initialize paths to an empty list
             node_label = node_labels.get(node)
             if node_label is not None:
                 paths = query_direct(self.graph, node, node_label)
             if paths:
                 (selected_paths, 
-                 selected_nodes, 
-                 selected_graph_rels) = select_paths2(paths, 
-                                                      question, 
-                                                      len(paths)//15, 
-                                                      3, 
-                                                      progress_callback)
-                
+                selected_nodes, 
+                selected_graph_rels) = select_paths2(paths, 
+                                                    question, 
+                                                    max(1, len(paths)//3), 
+                                                    3, 
+                                                    progress_callback)
+
                 mid_direct_paths.update(selected_paths)
                 mid_direct_nodes.update(selected_nodes)
                 mid_direct_graph_rels.update(selected_graph_rels)
@@ -143,8 +152,8 @@ class PharosGraphQA:
          selected_mid_inter_nodes, 
          selected_mid_inter_graph_rels) = select_paths2(mid_inter_paths, 
                                                         question, 
-                                                        len(mid_inter_paths)//15, 
-                                                        50, 
+                                                        len(mid_inter_paths)//3, 
+                                                        30, 
                                                         progress_callback)
         
 

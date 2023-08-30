@@ -70,7 +70,7 @@ class PredictedGrqphQA:
         if source_entity_type == "Disease":
             self.source_result_dict = query_predicted_disease_info(source_entity_name, question)
             self.source_similar_entity_names = list(self.source_result_dict.keys())
-            
+
         if source_entity_type == "Drug":
             self.source_result_dict = query_predicted_drug_info(source_entity_name, question)
             self.source_similar_entity_names = list(self.source_result_dict.keys())
@@ -86,7 +86,6 @@ class PredictedGrqphQA:
         if target_entity_type == "Drug":
             self.target_result_dict = query_predicted_drug_info(target_entity_name, question)
             self.target_similar_entity_names = list(self.target_result_dict.keys())
-            print(self.target_similar_entity_names)
 
         if target_entity_type == "Gene":
             self.target_result_dict = query_predicted_target_info(target_entity_name, question)
@@ -113,7 +112,7 @@ class PredictedGrqphQA:
                     self.additional_similar_entity_names_lists[entityname] = list(self.additional_result_dict.keys())
 
 
-    def _call(self, names_list, question, previous_answer, generate_an_answer, progress_callback=None):
+    def _call(self, names_list, question, previous_answer, progress_callback=None):
         # Get the maximum length among all lists of keys
         if self.additional_entity_types is not None:
             max_length = max(len(self.source_similar_entity_names), len(self.target_similar_entity_names), max([len(names) for names in self.additional_similar_entity_names_lists.values()]))
@@ -164,13 +163,19 @@ class PredictedGrqphQA:
             print("query nodes")
             print(len(query_nodes))
             print(query_nodes)
+            if query_nodes is None or len(query_nodes) == 0:
+                response = {"result": None, 
+                            "all_rels": None,
+                            "names_to_print": None}
+                return response
 
             mid_direct_paths = set()
             mid_direct_nodes = set()
             mid_direct_graph_rels = set()
-
+            query_nodes = list(query_nodes)
             node_labels = get_node_labels_dict(self.graph, query_nodes)
             for node in query_nodes:
+                paths = []  # Initialize paths to an empty list
                 node_label = node_labels.get(node)
                 if node_label is not None:
                     paths = query_direct(self.graph, node, node_label)
@@ -179,10 +184,10 @@ class PredictedGrqphQA:
                     selected_nodes, 
                     selected_graph_rels) = select_paths2(paths, 
                                                         question, 
-                                                        len(paths)//15, 
+                                                        max(1, len(paths)//3), 
                                                         3, 
                                                         progress_callback)
-                    
+
                     mid_direct_paths.update(selected_paths)
                     mid_direct_nodes.update(selected_nodes)
                     mid_direct_graph_rels.update(selected_graph_rels)
@@ -251,6 +256,7 @@ class PredictedGrqphQA:
             answer = final_context
 
             response = {"result": answer, 
-                        "all_rels": all_graph_rels}
+                        "all_rels": all_graph_rels,
+                        "names_to_print": names_to_print}
                     
             yield response

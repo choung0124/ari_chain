@@ -7,6 +7,16 @@ Your Previous Answers:
 Question: {question}
 ### Assistant: """
 
+Final_Answer_Template_Alpaca = """### Instruction:
+Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Your Previous Answers:
+{input}
+
+### Input:
+Quesiton: {question}
+
+### Response: """
+
 Entity_type_Template_Alpaca = """### Instruction:
 Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose from the list below:
 Entity Types:
@@ -39,6 +49,17 @@ Entities: [("Entity1_name", "Entity1_ype"), ("Entity2_name", "Entity2_type")]
 Input: {input}
 
 ### Assistant:"""
+
+OPC_Entity_type_Template = """### Instruction:
+
+Give the entity types of all the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Your response should be a list of tuples, use double quotes instead of single quotes. Choose one for each entity from the list below:
+Entity Types:
+Amino_acid_sequence, Analytical_sample, Biological_process, Biological_sample, Cellular_component, Chromosome, Clinical_variable, Clinically_relevant_variant, Complex, Disease, Drug, Experiment, Experimental_factor, Food, Functional_region, GWAS_study, Gene, Known_variant, Metabolite, Modification, Modified_protein, Molecular_function, Pathway, Peptide, Phenotype, Project, Protein, Protein_structure, Publication, Subject, Timepoint, Tissue, Transcript, Units, User
+Your response should strictly follow this format:
+Entities: [("Entity1_name", "Entity1_ype"), ("Entity2_name", "Entity2_type")]
+Input: {input}
+
+### Response:"""
 
 Entity_type_Template_add = """### Human: Tell me the entity types of the bimedical entities provided in the input, choose the entity types that accurately represent each entity provided in the input. Choose one for each entity from the list below:
 Entity Types:
@@ -138,17 +159,64 @@ Question: {input}
 Additional_Entity_Extraction_Template_Upstage = """### System:
 Do not answer the question. Below is a list of entities and the question they were extracted from. If there are any other entities that may help answer the question, extract those additional entities from the question. If there are no other entities, do nothing.
 Your response should strictly follow this format if there is only one other biomedical entity in the question:
-Additional Entities: [entity]
+Additional Entities: ["entity"]
 Your response should strictly follow this format if there are no other biomedical entities in the question:
 Additional Entities: []
 Your response should strictly follow this format if there are multiple other biomedical entities in the question:
-Additional Entities: [entity1, entity2, entity3]
+Additional Entities: ["entity1", "entity2", "entity3"]
 ### User:
 Entities: {entities}
 Question: {input}
 
 ### Assistant:
 """
+
+OPC_Entity_Extraction_Template_Upstage = """### System:
+Do not answer the question. Extract all biomedical entities from the question.
+Your response should strictly follow this format if there is only one biomedical entity in the question:
+Additional Entities: ["entity"]
+Your response should strictly follow this format if there are two biomedical entities in the question:
+Additional Entities: ["entity1", "entity2"]
+Your response should strictly follow this format if there are three biomedical entities in the question:
+Additional Entities: ["entity1", "entity2", "entity3"]
+Your response should strictly follow this format if there are four biomedical entities in the question:
+Additional Entities: ["entity1", "entity2", "entity3", "entity4"]
+Your response should strictly follow this format if there are no biomedical entities in the question:
+Additional Entities: []
+### User:
+Question: {input}
+
+### Assistant:
+"""
+
+OPC_Entity_Extraction_Template_Guanaco = """### Instruction:
+
+Do not answer the question. Extract all entities from the question below. Do not put square brackets around each extracted entity.
+
+Response template examples:
+
+Your response should look like this if there is only one entity in the question:
+Entities: ["entity"]
+
+Your response should look like this if there are two entities in the question:
+Entities: ["entity1", "entity2"]
+
+Your response should look like this if there are three entities in the question:
+Entities: ["entity1", "entity2", "entity3"]
+
+Your response should look like this if there are four entities in the question:
+Entities: ["entity1", "entity2", "entity3", "entity4"]
+
+Your response should strictly follow this format if there are no entities in the question:
+Entities: []
+
+PLEASE DO NOT DO SOMETHING LIKE THIS:
+Entities: [["entity1"], ["entity2"]]
+
+Question: {input}
+
+### Response:"""
+
 
 Additional_Entity_Extraction_Template_Alpaca = """### Instruction:
 Do not answer the question. Below is a list of entities and the question they were extracted from, if there are any other entities that may help answer the question, extract those additional entities from the question. If there are no other entities, do nothing.:
@@ -197,7 +265,7 @@ Summarize this information, include only the generated summary in your response:
 
 Graph_Answer_Gen_Template_alpaca = """Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
-### Instruction: Give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+### Instruction: As if you were a healthcare professional/biomedical researcher, give a detailed answer the question, using information from the context below. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
 Question: {question}
 Context: 
 {input}
@@ -229,7 +297,7 @@ Context:
 
 Graph_Answer_Gen_Template2_alpaca = """### Instruction: Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
-Below is a question, your previous answer to the question, and some additional context. Using the additional context, improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
+Below is a question, your previous answer to the question, and some additional context. As if you were a healthcare professional/biomedical researcher, use the additional context to improve your answer. Use the additional context as if it were the results of further research to answer the question. Infer mechanisms or pathways from the relational information in the context to add more depth to your answer.
 Question: {question}
 Previous Answer: {previous_answer}
 Context: 

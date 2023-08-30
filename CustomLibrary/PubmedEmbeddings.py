@@ -8,10 +8,10 @@ from psycopg2 import connect
 class PubmedSearchEngine:
     def __init__(self, host="localhost", port="5432", dbname='pubmed', user="hschoung", password="Reeds0124"):
         self.conn = connect(dbname=dbname, user=user, password=password, host=host, port=port)
-        self.encoder = CrossEncoder('pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb')
+        self.encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
         self.query_embedding_model = HuggingFaceEmbeddings(
-            model_name='pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb',
-            model_kwargs={'device': 'cpu'},
+            model_name='thenlper/gte-large',
+            model_kwargs={'device': 'cuda'},
             encode_kwargs={'normalize_embeddings': True}
         )
     
@@ -20,22 +20,20 @@ class PubmedSearchEngine:
         sorted_results = [(score, *result) for score, result in sorted(zip(scores, results), reverse=True)]
         return sorted_results[:1]
 
+
     def hybrid_search(self, query):
         query_vector = self.query_embedding_model.embed_query(query)
         with self.conn.cursor() as c:
             c.execute("""
                 SELECT pmid, title, doi, abstract
                 FROM pubmed_articles
-                WHERE (pmid IS NOT NULL AND pmid <> '')
-                AND (title IS NOT NULL AND title <> '')
-                AND (doi IS NOT NULL AND doi <> '')
-                AND (abstract IS NOT NULL AND abstract <> '')
-                AND to_tsvector('english', title || ' ' || abstract) @@ plainto_tsquery('english', %s)
-                ORDER BY pubmed_bert_vectors <#> %s::vector DESC, ts_rank_cd(to_tsvector('english', title || ' ' || abstract), plainto_tsquery('english', %s)) DESC
-                LIMIT 1000
-            """, (query, query_vector, query))
+                WHERE to_tsvector('english', title || ' ' || abstract) @@ plainto_tsquery('english', %s)
+                ORDER BY gte_embeddings <=> %s::vector DESC
+                LIMIT 10
+            """, (query, query_vector))
             results = c.fetchall()
         return results
+
 
     def query(self, question):
         results = self.hybrid_search(question)

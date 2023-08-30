@@ -79,7 +79,7 @@ class OpenTargetsGraphQA:
             from_target_paths, target_nodes, from_target_graph_rels = query_target_info(target_entity_name, question)
 
         query_nodes = source_nodes + target_nodes
-        query_nodes = set(query_nodes)
+        query_nodes = set(list(query_nodes))
         graph_rels = set(graph_rels)
 
         
@@ -106,21 +106,22 @@ class OpenTargetsGraphQA:
         mid_direct_paths = set()
         mid_direct_nodes = set()
         mid_direct_graph_rels = set()
-
+        query_nodes = list(query_nodes)
         node_labels = get_node_labels_dict(self.graph, query_nodes)
         for node in query_nodes:
+            paths = []  # Initialize paths to an empty list
             node_label = node_labels.get(node)
             if node_label is not None:
                 paths = query_direct(self.graph, node, node_label)
             if paths:
                 (selected_paths, 
-                 selected_nodes, 
-                 selected_graph_rels) = select_paths2(paths, 
-                                                      question, 
-                                                      len(paths)//15, 
-                                                      3, 
-                                                      progress_callback)
-                
+                selected_nodes, 
+                selected_graph_rels) = select_paths2(paths, 
+                                                    question, 
+                                                    max(1, len(paths)//3), 
+                                                    3, 
+                                                    progress_callback)
+
                 mid_direct_paths.update(selected_paths)
                 mid_direct_nodes.update(selected_nodes)
                 mid_direct_graph_rels.update(selected_graph_rels)

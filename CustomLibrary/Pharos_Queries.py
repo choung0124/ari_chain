@@ -19,8 +19,9 @@ class GraphQLClient:
         if response.status_code == 200:
             return response.json()
         else:
-            raise Exception("Query failed with status code: {} and message: {}".format(response.status_code, response.text))
-
+            print("Query failed with status code: {} and message: {}".format(response.status_code, response.text))
+            return None
+            
 def send_query(query, variables=None):
     client = GraphQLClient('https://pharos-api.ncats.io/graphql')
     return client.execute_query(query, variables)
@@ -111,6 +112,9 @@ def query_disease_associated_targets(string):
     }
     """
     id = query_id(string, False, True, False)
+    if not id:
+        print("No match found in the desired category for string: {}".format(string))
+        return None
     variables = {"name": id}
     response = send_query(query, variables)
     print(response)
@@ -148,6 +152,9 @@ def query_target_associated_diseases(string):
     """
     print
     id = query_id(string, True, False, False)
+    if not id:
+        print("No match found in the desired category for string: {}".format(string))
+        return None
     variables = {"name": id}
     response = send_query(query, variables)
     print(response)
@@ -188,6 +195,10 @@ def query_protein_protein_interactions(string):
     """
     print(query)
     id = query_id(string, True, False, False)
+    if not id:
+        print("No match found in the desired category for string: {}".format(string))
+        return None
+
     variables = {"name": id}
     response = send_query(query, variables)
     print(response)
@@ -231,7 +242,9 @@ def query_ligand_targets(string):
     print(query)
     name = query_id(string, False, False, True)
     if not name:
-        raise Exception("No match found in the desired category for string: {}".format(string))
+        print("No match found in the desired category for string: {}".format(string))
+        return None
+
     variables = {"name": name}
     response = send_query(query, variables)
     print(response)
@@ -288,7 +301,12 @@ def query_ligand_targets(string):
 ### if Drug
 
 def ligand_query(string, question, progress_callback=None):
-    response, formatted_ligand_targets, ligand_target_list, paths = query_ligand_targets(string)
+    result = query_ligand_targets(string)
+    if result is not None:
+        response, formatted_ligand_targets, ligand_target_list, paths = result
+    else:
+        return None
+
     first_ligand_target_target_paths = []
     first_ligand_target_disease_paths = []
 
@@ -314,7 +332,12 @@ def ligand_query(string, question, progress_callback=None):
     return final_formatted_list, final_nodes_list
 
 def disease_query(string, question, progress_callback=None):
-    response, formatted_disease_targets, disease_target_list, paths = query_disease_associated_targets(string)
+    result = query_disease_associated_targets(string)
+    if result is not None:
+        response, formatted_disease_targets, disease_target_list, paths = result
+    else:
+        return None
+
     first_disease_target_target_paths = []
     first_disease_target_ppi_paths = []
 
@@ -342,7 +365,11 @@ def disease_query(string, question, progress_callback=None):
 
 
 def target_query(string, question, progress_callback=None):
-    response, formatted_target_diseases, target_disease_list, paths = query_target_associated_diseases(string)
+    result = query_target_associated_diseases(string)
+    if result is not None:
+        response, formatted_target_diseases, target_disease_list, paths = result
+    else:
+        return None
     first_target_disease_target_paths = []
     first_target_disease_ppi_paths = []
 

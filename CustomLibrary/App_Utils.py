@@ -8,6 +8,8 @@ import webbrowser
 import os
 import colour
 import json
+from Bio import Entrez
+import time
 
 def extract_entities(question, entity_extraction_chain, additional_entity_extraction_chain):
     result = entity_extraction_chain.run(question)
@@ -149,12 +151,23 @@ def create_and_display_network(nodes, edges, back_color, name, source, target):
         html_string = open(f'{name}network.html', 'r').read()
         components.html(
             f"""
-            <div class="network" style="display: flex; justify-content: center;">
+            <div id="network" style="display: flex; justify-content: center;">
                 {html_string}
             </div>
+            <script>
+                function resizeNetwork() {{
+                    var network = document.getElementById('network');
+                    var width = window.innerWidth;
+                    var height = window.innerHeight;
+                    network.style.width = width + 'px';
+                    network.style.height = height + 'px';
+                }}
+                window.onresize = resizeNetwork;
+                resizeNetwork();
+            </script>
             """, 
-            width=1050, 
-            height=750
+            width=650, 
+            height=700
         )
 
     # Add a button to open the network in full size in a new tab
@@ -163,4 +176,34 @@ def create_and_display_network(nodes, edges, back_color, name, source, target):
         unsafe_allow_html=True
     )
 
+def search(query):
+    Entrez.email = 'hschoung0124@gmail.com'  # Always tell NCBI who you are
+    handle = Entrez.esearch(db='pubmed', 
+                            sort='relevance',  
+                            retmax='1', 
+                            retmode='xml', 
+                            term=query)
+    results = Entrez.read(handle)
+    return results
 
+from http.client import IncompleteRead
+
+def fetch_details(id_list):
+    ids = ','.join(id_list)
+    Entrez.email = 'hschoung0124@gmail.com'
+    try:
+        handle = Entrez.efetch(db='pubmed',
+                               retmode='xml',
+                               id=ids)
+        results = Entrez.read(handle)
+    except IncompleteRead as e:
+        print("Incomplete read error, retrying...")
+        return fetch_details(id_list)
+    return results
+
+def search_pubmed(query):
+    results = search(query)
+    id_list = results['IdList']
+    papers = fetch_details(id_list)
+    for i, paper in enumerate(papers['PubmedArticle']):
+        return "https://pubmed.ncbi.nlm.nih.gov/{}".format(id_list[0])

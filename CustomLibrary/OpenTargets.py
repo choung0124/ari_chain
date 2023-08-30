@@ -551,16 +551,14 @@ def query_predicted_disease_info(string, question, progress_callback=None):
 
                   selected_disease_paths, selected_disease_nodes, unique_disease_rels, selected_stage2 = select_paths(disease_target_pathway_paths,
                                                                                                                       question,
-                                                                                                                      len(disease_target_pathway_paths)//15,
+                                                                                                                      max(1, len(disease_target_pathway_paths)//15),
                                                                                                                       3,
                                                                                                                       progress_callback)
-                  
                   selected_disease_target_target_paths, selected_disease_target_target_nodes, unique_disease_target_target_rels, selected_stage2 = select_paths(disease_target_target_paths,
                                                                                                                                                     question,
-                                                                                                                                                    len(disease_target_target_paths)//15,
+                                                                                                                                                    max(1,len(disease_target_target_paths)//15),
                                                                                                                                                     3,
                                                                                                                                                     progress_callback)
-                  
                   mid_disease_target_target_paths = selected_disease_paths + selected_disease_target_target_paths
                   final_disease_target_target_paths.extend(mid_disease_target_target_paths)
                   mid_disease_target_target_nodes = selected_disease_nodes + selected_disease_target_target_nodes
@@ -573,8 +571,8 @@ def query_predicted_disease_info(string, question, progress_callback=None):
                                     "rels": mid_unique_disease_target_target_rels,
                                     "score": score
                                     }
+                        
               count += 1
-
       return result_dict
     
 def query_predicted_drug_info(string, question, progress_callback=None):

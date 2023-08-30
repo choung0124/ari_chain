@@ -16,25 +16,34 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from typing import List, Optional
 import gc
 
-def generate_answer(llm, relationships_list, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, additional_rels:Optional[List[str]]=None):
+
+def generate_answer(llm, source_list, target_list, inter_direct_list, inter_direct_inter, question, source, target, additional_rels:Optional[List[str]]=None, relationships_list:Optional[List[str]]=None):
     prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     #prompt = PromptTemplate(template=Graph_Answer_Gen_Template_alpaca, input_variables=["input", "question"])
     gen_chain = LLMChain(llm=llm, prompt=prompt)
-    multi_hop = ', '.join(relationships_list)
     source_sentences = ','.join(source_list)
     target_sentences = ','.join(target_list)
     Inter_relationships = inter_direct_list + inter_direct_inter
     Inter_sentences = ','.join(Inter_relationships)
-    sep_1 = f"Indirect relations between {source} and {target}:"
     sep2 = f"Direct relations from {source}:"
     sep3 = f"Direct relations from {target}:"
     sep4 = f"Relations between the targets of {source} and {target}"
-    if additional_rels:
-        additional_sentences = ','.join(additional_rels)
-        sep5 = f"Additional relations related to the question"
-        sentences = '\n'.join([sep_1, multi_hop, sep2, source_sentences, sep3, target_sentences, sep4, Inter_sentences, sep5, additional_sentences])
+    if relationships_list:
+        multi_hop = ', '.join(relationships_list)
+        sep_1 = f"Indirect relations between {source} and {target}:"
+        if additional_rels:
+            additional_sentences = ','.join(additional_rels)
+            sep5 = f"Additional relations related to the question"
+            sentences = '\n'.join([sep_1, multi_hop, sep2, source_sentences, sep3, target_sentences, sep4, Inter_sentences, sep5, additional_sentences])
+        else:
+            sentences = '\n'.join([sep_1, multi_hop, sep2, source_sentences, sep3, target_sentences, sep4, Inter_sentences])
     else:
-        sentences = '\n'.join([sep_1, multi_hop, sep2, source_sentences, sep3, target_sentences, sep4, Inter_sentences])
+        if additional_rels:
+            additional_sentences = ','.join(additional_rels)
+            sep5 = f"Additional relations related to the question"
+            sentences = '\n'.join([sep2, source_sentences, sep3, target_sentences, sep4, Inter_sentences, sep5, additional_sentences])
+        else:
+            sentences = '\n'.join([sep2, source_sentences, sep3, target_sentences, sep4, Inter_sentences])
     answer = gen_chain.run(input=sentences, question=question)
     print(answer)
     return answer

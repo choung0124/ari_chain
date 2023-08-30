@@ -17,11 +17,11 @@ class CustomLLMChain(LLMChain):
         return parse_llm_output(output)
 
 def parse_llm_output(output: str) -> list:
-    entities_match = re.search(r"Entities: \[(.*?)\]", output)
+    entities_match = re.search(r"Entities: (\[[^\]]*\])", output)
     if entities_match:
         entities = entities_match.group(1)
-        # Split the entities by comma and strip the surrounding spaces and quotes
-        entities = entities.strip('[]').strip("'").split("', '")
+        # Parse the entities with json.loads
+        entities = json.loads(entities)
         return entities
     else:
         return []
@@ -36,15 +36,18 @@ class CustomLLMChainAdditionalEntities(LLMChain):
         return parse_llm_output_additional(output)
 
 def parse_llm_output_additional(output: str) -> list:
-    entities_match = re.search(r'Additional Entities: (\[[\'\"\“\”].*?[\'\"\“\”]\])', output)
-    print(f"entities_match: {entities_match}")  # Debugging line
+    entities_match = re.search(r'Additional Entities: (\[[^\]]*\])', output)
     if entities_match:
         entities = entities_match.group(1)
-        entities = entities.strip('[]').strip("'\"“”").split("', '")
-        return entities
+        print(f"entities: {entities}")  # Debugging line
+        try:
+            entities = json.loads(entities)
+            return entities
+        except json.JSONDecodeError as e:
+            print(f"Error parsing entities: {e}")
+            return []
     else:
         return []
-
 # Set up a prompt template
 class PubmedAgentPromptTemplate(StringPromptTemplate):
     # The template to use
